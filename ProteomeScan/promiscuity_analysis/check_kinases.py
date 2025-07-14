@@ -21,7 +21,7 @@ def check_kinase(gene_name):
 def worker(genes):
     return [check_kinase(g) for g in genes]
 
-def run_parallel(genes, processes=None):
+def run_parallel(gene_list, processes=None):
     # Split genes into roughly equal chunks per process
     n = processes or None  # None → default to cpu_count()
     with Pool(processes=n) as pool:
