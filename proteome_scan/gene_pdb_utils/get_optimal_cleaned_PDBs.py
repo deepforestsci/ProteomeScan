@@ -14,7 +14,7 @@ def run_on_multiple_threads(fn, values, max_workers):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(tqdm(executor.map(fn, values), total=len(values), desc="Processing"))
     return list(results)
-# %%
+
 def get_canon_pdb(gene_name):
     print("---------")
     print(gene_name)
@@ -37,7 +37,6 @@ def get_canon_pdb(gene_name):
         print(results)
         return results
 
-# %%
 def get_pdbs_df(protein_id):
     # pdb_list = []
     search_results = requests.get(f"https://www.ebi.ac.uk/pdbe/graph-api/uniprot/protvista/unipdb/{protein_id}")
@@ -108,7 +107,7 @@ def get_pdbs_df(protein_id):
     pdbs_df = pdbs_df.set_index('id', drop=False)
     return pdbs_df
 
-# %%
+
 def get_protein_details(protein_id):
     search_results = requests.get(f"https://www.ebi.ac.uk/proteins/api/proteins/{protein_id}")
     data = search_results.json()
@@ -116,7 +115,7 @@ def get_protein_details(protein_id):
     return length, seq
 
 
-# %%
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -141,7 +140,7 @@ def visualize_ranges(ranges, selected_ranges, MAX):
     plt.savefig(f"visualize_ranges.png")
 
 
-# %%
+
 class Range:
     def __init__(self, id, start, end, error_score):
         self.id = id
@@ -212,7 +211,7 @@ def get_optimal_pdbs_df(df, seq_length, min_res_val=2.5):
     selected_pdbs = df.loc[ids]
     return selected_pdbs
 
-# %%
+
 def download_pdbs(gene_name, pdb_id_list):
     failed_pdbs = []
     for pdb_id in pdb_id_list:
@@ -228,7 +227,7 @@ def download_pdbs(gene_name, pdb_id_list):
             failed_pdbs.append(pdb_id)
     return failed_pdbs
 
-# %%
+
 from Bio import PDB
 
 def get_chain_ids(pdb_file):
@@ -246,7 +245,7 @@ def get_chain_ids(pdb_file):
 
     return list(chain_ids)
 
-# %%
+
 def pdb_cleaner(gene_name, id, remove_chains=[]):
     # remove_chains = []
     replace_nonstandard_residues = None
@@ -371,7 +370,7 @@ def run(item):
     primary_genes = item['Gene Names (primary; single)']
     gene_name = primary_genes.split('; ')[0].strip()
     print(gene_name)
-    if os.path.exists(f"/home/ubuntu/download_pdbs/{gene_name}"):
+    if os.path.exists(f"./{gene_name}"):
         print(f"skipping {gene_name}")
         return 'skipped'
     try:
@@ -382,7 +381,7 @@ def run(item):
     return output
 
 if __name__ == "__main__":
-    df = pd.read_csv("ProteomeScan/gene_selection/experimental/valid_for_pipeline_7681_human_prot.csv")
+    df = pd.read_csv("../../data/gene_selection_raw/experimental/valid_for_pipeline_7681_human_prot.csv")
     data = df[['Entry', 'Gene Names (primary; single)']].to_dict('index')
 
     to_run = list(data.values())

@@ -1,7 +1,7 @@
 # Gene-based Docking
 
 ## Pseudo-Code
-### Algorithm: Run Gene-Based Docking
+### Algorithm: Run Gene-Guided Docking
 
 ```
 Input: ligand, gene name

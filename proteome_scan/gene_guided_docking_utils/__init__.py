@@ -1,0 +1,2 @@
+from proteome_scan.gene_guided_docking_utils.gene_guided_docking import main as run_docking
+from proteome_scan.gene_guided_docking_utils.parse_results import parse_results

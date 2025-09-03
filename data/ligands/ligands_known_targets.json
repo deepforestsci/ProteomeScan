@@ -1,0 +1,126 @@
+{
+  "Trametinib": {
+    "target_genes": [
+      "MAP2K1",
+      "MAP2K2"
+    ]
+  },
+  "Binimetinib": {
+    "target_genes": [
+      "MAP2K1",
+      "MAP2K2"
+    ]
+  },
+  "Dabrafenib": {
+    "target_genes": [
+      "BRAF",
+      "BRAF_V600E",
+      "RAF1"
+    ]
+  },
+  "Vemurafenib": {
+    "target_genes": [
+      "BRAF",
+      "BRAF_V600E",
+      "RAF1"
+    ]
+  },
+  "TAK-632": {
+    "target_genes": [
+      "BRAF",
+      "RAF1"
+    ]
+  },
+  "Tucatinib": {
+    "target_genes": [
+      "ERBB2"
+    ]
+  },
+  "Regorafenib": {
+    "target_genes": [
+      "RAF1",
+      "KIT",
+      "PDGFRB",
+      "RET",
+      "FLT1",
+      "KDR",
+      "FLT4"
+    ]
+  },
+  "SOS1-IN-11": {
+    "target_genes": [
+      "SOS1"
+    ]
+  },
+  "SOS1-IN-15": {
+    "target_genes": [
+      "SOS1"
+    ]
+  },
+  "Palbociclib": {
+    "target_genes": [
+      "CDK4",
+      "CDK6"
+    ]
+  },
+  "Alpelisib": {
+    "target_genes": [
+      "PIK3CA",
+      "PIK3CA_H1047R",
+      "PIK3CA_E545K"
+    ]
+  },
+  "Erlotinib": {
+    "target_genes": [
+      "EGFR",
+      "EGFR_L858R",
+      "EGFR_exon19del"
+    ]
+  },
+  "Olaparib": {
+    "target_genes": [
+      "PARP1",
+      "PARP2"
+    ]
+  },
+  "RMC6236": {
+    "target_genes": [
+      "KRAS",
+      "NRAS",
+      "PPIA",
+      "HRAS"
+    ]
+  },
+  "Sapanisertib": {
+    "target_genes": [
+      "MTOR"
+    ]
+  },
+  "Selinexor": {
+    "target_genes": [
+      "XPO1"
+    ]
+  },
+  "SN-38": {
+    "target_genes": [
+      "TOP1"
+    ]
+  },
+  "Vociprotafib": {
+    "target_genes": [
+      "PTPN11"
+    ]
+  },
+  "Navitoclax": {
+    "target_genes": [
+      "BCL2",
+      "BCL2L1",
+      "BCL2L2"
+    ]
+  },
+  "Paclitaxel": {
+    "target_genes": [
+      "TUBB"
+    ]
+  }
+}
