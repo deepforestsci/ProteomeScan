@@ -5,9 +5,15 @@ import json
 from tqdm import tqdm
 import re
 import pandas as pd
+import subprocess
+import logging
+from pathlib import Path
 
 import os
 from concurrent.futures import ThreadPoolExecutor
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 def run_on_multiple_threads(fn, values, max_workers):
@@ -228,10 +234,9 @@ def download_pdbs(gene_name, pdb_id_list):
     return failed_pdbs
 
 
-from Bio import PDB
-
 def get_chain_ids(pdb_file):
     # Create a PDB parser
+    from Bio import PDB
     parser = PDB.PDBParser(QUIET=True)
 
     # Parse the PDB file
@@ -393,3 +398,74 @@ if __name__ == "__main__":
 
     with ProcessPoolExecutor(max_workers=5) as executor:
         results = list(tqdm(executor.map(run, to_run), desc="Parallel Processing", total=len(to_run)))
+
+
+def download_pdb_file(pdb_id, target_dir):
+    """Download PDB file from RCSB"""
+    pdb_file = target_dir / f"{pdb_id}.pdb"
+
+    if pdb_file.exists():
+        logger.info(f"PDB file {pdb_id}.pdb already exists")
+        return True
+
+    logger.info(f"Downloading PDB {pdb_id}...")
+
+    # Try wget first, then curl
+    for cmd_template in [
+        "wget -O {output} https://files.rcsb.org/download/{pdb_id}.pdb",
+        "curl -o {output} https://files.rcsb.org/download/{pdb_id}.pdb"
+    ]:
+        try:
+            cmd = cmd_template.format(output=pdb_file, pdb_id=pdb_id)
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            if result.returncode == 0 and pdb_file.exists():
+                logger.info(f"Downloaded {pdb_id}.pdb")
+                return True
+        except Exception as e:
+            continue
+
+    logger.error(f"Failed to download {pdb_id}.pdb")
+    return False
+
+
+def setup_gene_from_config(gene_config, work_dir):
+    """Setup gene directory from config"""
+    gene_name = gene_config['gene_name']
+    pdb_ids = gene_config.get('pdb_ids', [])
+
+    logger.info(f"Setting up {gene_name} with {len(pdb_ids)} PDBs")
+
+    # Create directories
+    gene_dir = Path(work_dir) / gene_name
+    gene_dir.mkdir(parents=True, exist_ok=True)
+
+    complexes_dir = gene_dir / "complexes"
+    complexes_dir.mkdir(exist_ok=True)
+
+    # Download all PDBs for this gene
+    successful_pdbs = []
+    pdb_paths = []
+
+    for pdb_id in pdb_ids:
+        if download_pdb_file(pdb_id, gene_dir):
+            successful_pdbs.append(pdb_id)
+            pdb_paths.append(f"{gene_name}/{pdb_id}.pdb")
+
+    if successful_pdbs:
+        # Create a CSV with PDB info
+        pdb_info = pd.DataFrame({
+            'id': successful_pdbs,
+            'path': pdb_paths,
+            'chains': ['A'] * len(successful_pdbs),  # Default chain
+            'resolution': [2.0] * len(successful_pdbs),  # Default resolution
+            'coverage': [100] * len(successful_pdbs)  # Default coverage
+        })
+        pdb_info = pdb_info.set_index('id')
+        pdb_info.to_csv(gene_dir / f"{gene_name}_pdbs.csv")
+
+        logger.info(f"Setup complete for {gene_name}: {len(successful_pdbs)} PDBs")
+        return True
+    else:
+        logger.error(f"No PDBs downloaded for {gene_name}")
+        return False

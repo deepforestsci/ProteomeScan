@@ -3,6 +3,10 @@ import re
 import pandas as pd
 from pymol import cmd, stored
 import shutil
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 def separate_protein_ligand(pose_path, run_dir):
@@ -136,6 +140,49 @@ def main(pose_path, results_dir, is_clean_up=False):
     # clean-up
     if is_clean_up:
         shutil.rmtree(run_dir)
+
+def run_pose_analysis(complex_file, results_dir, gene_name, pdb_id, ligand_name):
+    """Run pose analysis using fpocket"""
+    try:
+        logger.info(f"Running pose analysis for {gene_name}_{pdb_id}_{ligand_name}")
+
+        if not os.path.exists(complex_file):
+            logger.error(f"Complex file not found: {complex_file}")
+            return None
+
+        # Run analysis using the main function
+        main(complex_file, results_dir, is_clean_up=True)
+
+        # Check results
+        complex_name = f"complex_{gene_name}_{pdb_id}_{ligand_name}"
+        result_file = os.path.join(results_dir, complex_name, "result.csv")
+
+        if os.path.exists(result_file):
+            result_df = pd.read_csv(result_file)
+
+            if len(result_df) > 0:
+                total_coverage = result_df['% Ligand inside pocket'].sum()
+                top1_coverage = result_df['% Ligand inside pocket'].max()
+
+                logger.info(f"  {gene_name}: {total_coverage:.1f}% total, {top1_coverage:.1f}% top1")
+
+                return {
+                    'gene_name': gene_name,
+                    'pdb_id': pdb_id,
+                    'ligand_name': ligand_name,
+                    'total_coverage': min(100.0, total_coverage),
+                    'top1_coverage': min(100.0, top1_coverage),
+                    'num_pockets': len(result_df),
+                    'status': 'SUCCESS'
+                }
+
+        logger.warning(f"No valid results for {gene_name}")
+        return None
+
+    except Exception as e:
+        logger.error(f"Pose analysis failed for {gene_name}: {e}")
+        return None
+
 
 if __name__ == "__main__":
     pose_path = "" # complex pdb file

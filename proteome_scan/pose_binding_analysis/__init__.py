@@ -1,0 +1,1 @@
+from proteome_scan.pose_binding_analysis.analyse_pose_script import separate_protein_ligand, main, run_pose_analysis

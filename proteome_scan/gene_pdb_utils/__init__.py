@@ -1,1 +1,1 @@
-from proteome_scan.gene_pdb_utils.get_optimal_cleaned_PDBs import get_cleaned_pdbs
+from proteome_scan.gene_pdb_utils.get_optimal_cleaned_PDBs import get_cleaned_pdbs, download_pdb_file, setup_gene_from_config
