@@ -1,73 +1,72 @@
 #!/usr/bin/env python3
 """
-Simple general ProteomeScan pipeline
-Reads inputs from separate input folder:
-- SDF files
-- JSON with ligand and PDB information
+Simple general ProteomeScan pipeline - Refactored to use existing utilities
+
+This module provides a complete pipeline for proteome scanning that:
+- Reads inputs from separate input folder (SDF files, JSON with ligand and PDB information)
+- Sets up gene directories and downloads PDB files
+- Performs molecular docking using Vina
+- Analyzes binding poses using fpocket
+- Filters results based on pocket coverage
+
 """
 
 import os
 import sys
 import json
 import pandas as pd
-import subprocess
 import shutil
+import argparse
 from pathlib import Path
 import logging
+from typing import Dict, List, Any, Optional, Tuple, Union
+
+# Import utilities from the proteome_scan package
+from proteome_scan import (
+    download_pdb_file,
+    setup_gene_from_config,
+    vina_docking,
+    run_pose_analysis
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
-def download_pdb_file(pdb_id, target_dir):
-    """Download PDB file from RCSB"""
-    pdb_file = target_dir / f"{pdb_id}.pdb"
+# download_pdb_file is now imported from proteome_scan.gene_pdb_utils
 
-    if pdb_file.exists():
-        logger.info(f"PDB file {pdb_id}.pdb already exists")
-        return True
+# vina_docking is now imported from proteome_scan.gene_guided_docking_utils
 
-    logger.info(f"Downloading PDB {pdb_id}...")
+def run_docking_for_gene(
+    gene_name: str,
+    ligand_name: str,
+    ligand_address: str,
+    scan_dir: str
+) -> bool:
+    """
+    Run molecular docking for a specific gene-ligand pair.
 
-    # Try wget first, then curl
-    for cmd_template in [
-        "wget -O {output} https://files.rcsb.org/download/{pdb_id}.pdb",
-        "curl -o {output} https://files.rcsb.org/download/{pdb_id}.pdb"
-    ]:
-        try:
-            cmd = cmd_template.format(output=pdb_file, pdb_id=pdb_id)
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    This function performs Vina docking between a ligand and all PDB structures
+    associated with a given gene. It processes results and saves the top scoring
+    complexes for further analysis.
 
-            if result.returncode == 0 and pdb_file.exists():
-                logger.info(f"Downloaded {pdb_id}.pdb")
-                return True
-        except Exception as e:
-            continue
+    Args:
+        gene_name (str): Name of the target gene (e.g., 'BRAF', 'MEK1')
+        ligand_name (str): Name of the ligand compound (e.g., 'Dabrafenib')
+        ligand_address (str): File path to the ligand SDF file
+        scan_dir (str): Root directory for pipeline results
 
-    logger.error(f"Failed to download {pdb_id}.pdb")
-    return False
+    Returns:
+        bool: True if docking completed successfully, False otherwise
 
-def vina_docking(raw_pdb_address, raw_ligand_address, scan_dir, exhaustiveness=32, num_modes=8):
-    """Vina docking function - copied from working code"""
-    import datetime as dt
-    from deepchem.dock.pose_generation import VinaPoseGenerator
-    from rdkit import Chem
+    Raises:
+        Exception: If docking process encounters critical errors
 
-    dir_name = "vina_docking_"+str(dt.datetime.now().isoformat())
-    tmp = os.path.join(scan_dir, dir_name)
-    os.mkdir(tmp)
-
-    pg = VinaPoseGenerator()
-    complex, scores = pg.generate_poses(
-                        molecular_complex=(raw_pdb_address, raw_ligand_address),
-                        exhaustiveness=exhaustiveness,
-                        num_modes=num_modes,
-                        out_dir=tmp,
-                        generate_scores=True)
-    return complex, scores
-
-def run_docking_for_gene(gene_name, ligand_name, ligand_address, scan_dir):
-    """Run docking for a gene-ligand pair"""
+    Note:
+        - Requires a PDB metadata CSV file at {scan_dir}/{gene_name}/{gene_name}_pdbs.csv
+        - Creates complex PDB files in {scan_dir}/{gene_name}/complexes/
+        - Saves results to {scan_dir}/{ligand_name}/top_score_{gene_name}_{ligand_name}.csv
+    """
     from rdkit import Chem
 
     try:
@@ -148,110 +147,65 @@ def run_docking_for_gene(gene_name, ligand_name, ligand_address, scan_dir):
         logger.error(f"Error in docking {gene_name} {ligand_name}: {e}")
         return False
 
-def run_pose_analysis(complex_file, results_dir, gene_name, pdb_id, ligand_name):
-    """Run pose analysis using fpocket"""
-    try:
-        logger.info(f"Running pose analysis for {gene_name}_{pdb_id}_{ligand_name}")
+# run_pose_analysis is now imported from proteome_scan.pose_binding_analysis
 
-        if not os.path.exists(complex_file):
-            logger.error(f"Complex file not found: {complex_file}")
-            return None
+# setup_gene_from_config is now imported from proteome_scan.gene_pdb_utils
 
-        # Import pose analysis functions
-        sys.path.append('proteome_scan/pose_binding_analysis')
-        from analyse_pose_script import main as analyze_pose
+def run_pipeline(config_file: str, sdf_dir: str) -> None:
+    """
+    Execute the complete ProteomeScan pipeline from configuration file.
 
-        # Run analysis
-        analyze_pose(complex_file, results_dir, is_clean_up=True)
+    This is the main pipeline orchestrator that coordinates all pipeline steps:
+    1. Gene setup and PDB download
+    2. Molecular docking execution
+    3. Pose analysis and pocket coverage calculation
+    4. Results filtering and file organization
 
-        # Check results
-        complex_name = f"complex_{gene_name}_{pdb_id}_{ligand_name}"
-        result_file = os.path.join(results_dir, complex_name, "result.csv")
+    Args:
+        config_file (str): Path to JSON configuration file containing:
+            - work_dir: Output directory path
+            - genes: List of gene configurations with names and PDB IDs
+            - ligands: List of ligand configurations with names and SDF files
+        sdf_dir (str): Directory containing ligand SDF files
 
-        if os.path.exists(result_file):
-            result_df = pd.read_csv(result_file)
+    Returns:
+        None
 
-            if len(result_df) > 0:
-                total_coverage = result_df['% Ligand inside pocket'].sum()
-                top1_coverage = result_df['% Ligand inside pocket'].max()
+    Raises:
+        FileNotFoundError: If config file or SDF directory doesn't exist
+        json.JSONDecodeError: If config file is malformed
 
-                logger.info(f"  {gene_name}: {total_coverage:.1f}% total, {top1_coverage:.1f}% top1")
+    Example:
+        >>> run_pipeline('config.json', 'data/ligands/processed/')
 
-                return {
-                    'gene_name': gene_name,
-                    'pdb_id': pdb_id,
-                    'ligand_name': ligand_name,
-                    'total_coverage': min(100.0, total_coverage),
-                    'top1_coverage': min(100.0, top1_coverage),
-                    'num_pockets': len(result_df),
-                    'status': 'SUCCESS'
-                }
-
-        logger.warning(f"No valid results for {gene_name}")
-        return None
-
-    except Exception as e:
-        logger.error(f"Pose analysis failed for {gene_name}: {e}")
-        return None
-
-def setup_gene_from_config(gene_config, work_dir):
-    """Setup gene directory from config"""
-    gene_name = gene_config['gene_name']
-    pdb_ids = gene_config['pdb_ids']
-
-    logger.info(f"Setting up {gene_name} with PDBs: {pdb_ids}")
-
-    # Create directories
-    gene_dir = Path(work_dir) / gene_name
-    gene_dir.mkdir(parents=True, exist_ok=True)
-
-    complexes_dir = gene_dir / "complexes"
-    complexes_dir.mkdir(exist_ok=True)
-
-    # Download PDBs
-    successful_pdbs = []
-    for pdb_id in pdb_ids:
-        if download_pdb_file(pdb_id, gene_dir):
-            successful_pdbs.append(pdb_id)
-
-    if not successful_pdbs:
-        logger.error(f"No PDBs downloaded for {gene_name}")
-        return False
-
-    # Create CSV with PDB info - keep it simple like other files
-    pdb_data = []
-    for pdb_id in successful_pdbs:
-        pdb_data.append({
-            'id': pdb_id,
-            'path': f"{gene_name}/{pdb_id}.pdb"
-        })
-
-    pdb_df = pd.DataFrame(pdb_data)
-    pdb_df.set_index('id', inplace=True)
-    pdb_df.to_csv(gene_dir / f"{gene_name}_pdbs.csv")
-
-    logger.info(f"Setup complete for {gene_name}: {len(successful_pdbs)} PDBs")
-    return True
-
-def run_pipeline(config_file, sdf_dir):
-    """Run the complete pipeline from config file and SDF directory"""
-
+    Config file format:
+        {
+            "work_dir": "pipeline_results",
+            "genes": [
+                {"gene_name": "BRAF", "pdb_ids": ["4XV2", "5VAL"]},
+                {"gene_name": "MEK1", "pdb_ids": ["3EQH"]}
+            ],
+            "ligands": [
+                {"ligand_name": "Dabrafenib", "sdf_file": "Processed_Dabrafenib.sdf"}
+            ]
+        }
+    """
     logger.info("=== SIMPLE PROTEOME SCAN PIPELINE ===")
 
-    # Load config
+    # Load configuration
     with open(config_file, 'r') as f:
-        config = json.load(f)
+        config: Dict[str, Any] = json.load(f)
 
-    work_dir = config.get('work_dir', 'pipeline_results')
-    genes = config['genes']
-    ligands = config['ligands']
+    work_dir: str = config.get('work_dir', 'pipeline_results')
+    genes: List[Dict[str, Any]] = config['genes']
+    ligands: List[Dict[str, Any]] = config['ligands']
 
     # Create work directory
     Path(work_dir).mkdir(exist_ok=True)
 
     # Step 1: Setup genes
     logger.info("Step 1: Setting up genes and downloading PDBs")
-    valid_genes = []
+    valid_genes: List[Dict[str, Any]] = []
 
     for gene_config in genes:
         if setup_gene_from_config(gene_config, work_dir):
@@ -285,7 +239,7 @@ def run_pipeline(config_file, sdf_dir):
     # Step 3: Run pose analysis
     logger.info("Step 3: Running pose analysis")
 
-    all_results = []
+    all_results: List[Dict[str, Any]] = []
 
     for ligand_config in ligands:
         ligand_name = ligand_config['ligand_name']
@@ -304,18 +258,20 @@ def run_pipeline(config_file, sdf_dir):
                         results_dir = Path(work_dir) / "pose_analysis"
                         results_dir.mkdir(exist_ok=True)
 
-                        result = run_pose_analysis(str(complex_file), str(results_dir), gene_name, pdb_id, ligand_name)
+                        result: Optional[Dict[str, Any]] = run_pose_analysis(
+                            str(complex_file), str(results_dir), gene_name, pdb_id, ligand_name
+                        )
                         if result:
                             all_results.append(result)
 
     # Save final results
     if all_results:
-        results_df = pd.DataFrame(all_results)
+        results_df: pd.DataFrame = pd.DataFrame(all_results)
         results_file = Path(work_dir) / "pipeline_results.csv"
         results_df.to_csv(results_file, index=False)
 
         # Filter complexes with >50% pocket coverage
-        high_coverage_df = results_df[results_df['total_coverage'] > 50.0].copy()
+        high_coverage_df: pd.DataFrame = results_df[results_df['total_coverage'] > 50.0].copy()
 
         if len(high_coverage_df) > 0:
             # Save high coverage complexes
@@ -359,15 +315,51 @@ def run_pipeline(config_file, sdf_dir):
 
     logger.info("=== PIPELINE COMPLETED ===")
 
-if __name__ == "__main__":
-    import argparse
 
-    parser = argparse.ArgumentParser(description='Simple ProteomeScan Pipeline')
-    parser.add_argument('--config', required=True, help='JSON config file with genes and ligands info')
-    parser.add_argument('--sdf-dir', required=True, help='Directory containing SDF files')
+def main() -> None:
+    """
+    Command-line interface for the ProteomeScan pipeline.
 
-    args = parser.parse_args()
+    Parses command-line arguments and executes the pipeline with the specified
+    configuration file and SDF directory.
 
+    Command-line Arguments:
+        --config: Path to JSON configuration file (required)
+        --sdf-dir: Directory containing ligand SDF files (required)
+
+    Example:
+        python proteome_scan_pipeline.py --config config.json --sdf-dir data/ligands/processed/
+
+    Raises:
+        SystemExit: If required files/directories are not found or pipeline fails
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description='ProteomeScan Pipeline - Molecular docking and pose analysis',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+    python proteome_scan_pipeline.py --config config.json --sdf-dir data/ligands/processed/
+
+Config file should contain gene and ligand information in JSON format.
+See documentation for detailed configuration format.
+        """
+    )
+    parser.add_argument(
+        '--config',
+        required=True,
+        type=str,
+        help='JSON configuration file with genes and ligands information'
+    )
+    parser.add_argument(
+        '--sdf-dir',
+        required=True,
+        type=str,
+        help='Directory containing ligand SDF files'
+    )
+
+    args: argparse.Namespace = parser.parse_args()
+
+    # Validate input arguments
     if not os.path.exists(args.config):
         logger.error(f"Config file not found: {args.config}")
         sys.exit(1)
@@ -376,4 +368,14 @@ if __name__ == "__main__":
         logger.error(f"SDF directory not found: {args.sdf_dir}")
         sys.exit(1)
 
-    run_pipeline(args.config, args.sdf_dir)
+    # Execute pipeline
+    try:
+        run_pipeline(args.config, args.sdf_dir)
+        logger.info("Pipeline completed successfully!")
+    except Exception as e:
+        logger.error(f"Pipeline failed with error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
