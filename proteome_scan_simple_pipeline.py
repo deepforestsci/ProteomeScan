@@ -2,7 +2,6 @@
 """
 Simple end-to-end ProteomeScan pipeline.
 Just download PDBs directly, no complex chain analysis.
-Based on complete_pipeline_4_targets.py approach.
 """
 
 import os
@@ -114,7 +113,7 @@ def run_simple_docking(gene_name, ligand_name, ligand_sdf_path, work_dir):
         # Load PDB list
         pdbs_df = pd.read_csv(pdbs_csv)
 
-        # For each PDB, create a simple complex (just copy the PDB)
+        # For each PDB
         success_count = 0
         for _, row in pdbs_df.iterrows():
             pdb_id = row['id']
