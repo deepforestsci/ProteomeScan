@@ -401,7 +401,35 @@ if __name__ == "__main__":
 
 
 def download_pdb_file(pdb_id, target_dir):
-    """Download PDB file from RCSB"""
+    """Download PDB file from RCSB PDB using wget or curl.
+
+    Parameters
+    ----------
+    pdb_id : str
+        PDB identifier for the structure to download.
+    target_dir : pathlib.Path
+        Directory where the PDB file will be saved as {pdb_id}.pdb.
+
+    Returns
+    -------
+    bool
+        True if file was downloaded successfully or already exists,
+        False if download failed.
+
+    Notes
+    -----
+    Downloads from https://files.rcsb.org/download/{pdb_id}.pdb using wget first,
+    then curl as fallback if wget fails.
+
+    If the target file already exists, returns True without downloading.
+
+    Examples
+    --------
+    >>> from pathlib import Path
+    >>> success = download_pdb_file('4XV2', Path('./BRAF/'))
+    >>> if success:
+    ...     print("Downloaded 4XV2.pdb")
+    """
     pdb_file = target_dir / f"{pdb_id}.pdb"
 
     if pdb_file.exists():
@@ -430,7 +458,35 @@ def download_pdb_file(pdb_id, target_dir):
 
 
 def setup_gene_from_config(gene_config, work_dir):
-    """Setup gene directory from config"""
+    """Setup gene directory and download PDB files from configuration.
+
+    Parameters
+    ----------
+    gene_config : dict
+        Dictionary with 'gene_name' (str) and optional 'pdb_ids' (list of str).
+    work_dir : str or pathlib.Path
+        Root directory where gene subdirectory will be created.
+
+    Returns
+    -------
+    bool
+        True if at least one PDB was downloaded successfully, False otherwise.
+
+    Notes
+    -----
+    Creates directory structure with main gene directory, complexes subdirectory,
+    and a CSV metadata file at {work_dir}/{gene_name}/{gene_name}_pdbs.csv.
+
+    CSV contains columns: id, path, chains, resolution, coverage.
+    Default values: chains='A', resolution=2.0, coverage=100.
+
+    Examples
+    --------
+    >>> gene_config = {"gene_name": "BRAF", "pdb_ids": ["4XV2", "5VAL"]}
+    >>> success = setup_gene_from_config(gene_config, './pipeline_results/')
+    >>> if success:
+    ...     print("BRAF setup completed")
+    """
     gene_name = gene_config['gene_name']
     pdb_ids = gene_config.get('pdb_ids', [])
 

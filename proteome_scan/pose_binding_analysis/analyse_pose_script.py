@@ -131,7 +131,7 @@ def main(pose_path, results_dir, is_clean_up=False):
     pockets_df = pd.DataFrame(parsed_pockets)
     pockets_df['Pocket_Druggability_Rank'] = pockets_df['Druggability Score'].rank(ascending=False, method='min')
     pockets_df, analysis_df = analyse_overlaps(ligand_path, pockets_out_path, pockets_df)
-    final_df = analysis_df[analysis_df['Ligand_VDWoverlap']>0].sort_values(by=['Ligand_VDWoverlap'])
+    final_df = analysis_df[analysis_df['Ligand_VDWoverlap']>0].sort_values('Ligand_VDWoverlap')  # type: ignore[call-overload]
     output_dir = os.path.join(results_dir, run_name)
     os.makedirs(output_dir)
     pockets_df.to_csv(os.path.join(output_dir, "full_analysis.csv"), index=False)
@@ -142,7 +142,51 @@ def main(pose_path, results_dir, is_clean_up=False):
         shutil.rmtree(run_dir)
 
 def run_pose_analysis(complex_file, results_dir, gene_name, pdb_id, ligand_name):
-    """Run pose analysis using fpocket"""
+    """Analyze protein-ligand complex using fpocket cavity detection.
+
+    Parameters
+    ----------
+    complex_file : str
+        Path to protein-ligand complex PDB file. Ligand must have residue
+        name 'LIG' or 'UNL'.
+    results_dir : str
+        Directory where analysis results will be saved.
+    gene_name : str
+        Gene name for result identification.
+    pdb_id : str
+        PDB identifier for result identification.
+    ligand_name : str
+        Ligand name for result identification.
+
+    Returns
+    -------
+    dict or None
+        Result dictionary with keys: gene_name, pdb_id, ligand_name,
+        total_coverage, top1_coverage, num_pockets, status.
+        Returns None if analysis fails.
+
+    Notes
+    -----
+    Separates protein and ligand using PyMOL, runs fpocket on protein to detect
+    cavities, then calculates ligand overlap with detected pockets.
+
+    total_coverage is sum of '% Ligand inside pocket' (capped at 100%).
+    top1_coverage is max of '% Ligand inside pocket' (capped at 100%).
+
+    Creates subdirectory in results_dir named complex_{gene_name}_{pdb_id}_{ligand_name}.
+
+    Examples
+    --------
+    >>> result = run_pose_analysis(
+    ...     'complex_BRAF_4XV2_Dabrafenib.pdb',
+    ...     './pose_analysis/',
+    ...     'BRAF',
+    ...     '4XV2',
+    ...     'Dabrafenib'
+    ... )
+    >>> if result:
+    ...     print(f"Coverage: {result['total_coverage']:.1f}%")
+    """
     try:
         logger.info(f"Running pose analysis for {gene_name}_{pdb_id}_{ligand_name}")
 

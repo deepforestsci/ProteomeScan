@@ -18,6 +18,43 @@ if DISABLE_WARNINGS:
 
 
 def vina_docking(raw_pdb_address, raw_ligand_address, scan_dir, exhaustiveness=32, num_modes=8):
+    """Perform molecular docking using DeepChem's VinaPoseGenerator.
+
+    Parameters
+    ----------
+    raw_pdb_address : str
+        Path to protein PDB file.
+    raw_ligand_address : str
+        Path to ligand SDF file.
+    scan_dir : str
+        Directory where temporary docking subdirectory will be created.
+    exhaustiveness : int, optional
+        Vina exhaustiveness parameter, default 32.
+    num_modes : int, optional
+        Maximum number of binding modes to generate, default 8.
+
+    Returns
+    -------
+    complex : tuple
+        Docked molecular complex from DeepChem.
+    scores : list
+        List of binding scores for each generated mode.
+
+    Notes
+    -----
+    Creates timestamped subdirectory in scan_dir for Vina output files.
+    Uses blind docking (no explicit pocket definition).
+
+    Examples
+    --------
+    >>> complex, scores = vina_docking(
+    ...     'protein.pdb',
+    ...     'ligand.sdf',
+    ...     './docking_results/'
+    ... )
+    >>> if scores:
+    ...     print(f"Best score: {scores[0]}")
+    """
     dir_name = "vina_docking_"+str(dt.datetime.now().isoformat())
     tmp = os.path.join(scan_dir, dir_name)
     os.mkdir(tmp)
