@@ -1,4 +1,3 @@
 from proteome_scan.gene_pdb_utils import get_cleaned_pdbs, download_pdb_file, setup_gene_from_config
 from proteome_scan.gene_guided_docking_utils import run_docking, parse_results
 from proteome_scan.gene_guided_docking_utils.gene_guided_docking import vina_docking
-from proteome_scan.pose_binding_analysis import run_pose_analysis
