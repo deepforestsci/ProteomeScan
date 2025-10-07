@@ -131,7 +131,7 @@ def main(pose_path, results_dir, is_clean_up=False):
     pockets_df = pd.DataFrame(parsed_pockets)
     pockets_df['Pocket_Druggability_Rank'] = pockets_df['Druggability Score'].rank(ascending=False, method='min')
     pockets_df, analysis_df = analyse_overlaps(ligand_path, pockets_out_path, pockets_df)
-    final_df = analysis_df[analysis_df['Ligand_VDWoverlap']>0].sort_values(by=['Ligand_VDWoverlap'])
+    final_df = analysis_df[analysis_df['Ligand_VDWoverlap']>0].sort_values('Ligand_VDWoverlap')  # type: ignore[call-overload]
     output_dir = os.path.join(results_dir, run_name)
     os.makedirs(output_dir)
     pockets_df.to_csv(os.path.join(output_dir, "full_analysis.csv"), index=False)
@@ -141,47 +141,6 @@ def main(pose_path, results_dir, is_clean_up=False):
     if is_clean_up:
         shutil.rmtree(run_dir)
 
-def run_pose_analysis(complex_file, results_dir, gene_name, pdb_id, ligand_name):
-    """Run pose analysis using fpocket"""
-    try:
-        logger.info(f"Running pose analysis for {gene_name}_{pdb_id}_{ligand_name}")
-
-        if not os.path.exists(complex_file):
-            logger.error(f"Complex file not found: {complex_file}")
-            return None
-
-        # Run analysis using the main function
-        main(complex_file, results_dir, is_clean_up=True)
-
-        # Check results
-        complex_name = f"complex_{gene_name}_{pdb_id}_{ligand_name}"
-        result_file = os.path.join(results_dir, complex_name, "result.csv")
-
-        if os.path.exists(result_file):
-            result_df = pd.read_csv(result_file)
-
-            if len(result_df) > 0:
-                total_coverage = result_df['% Ligand inside pocket'].sum()
-                top1_coverage = result_df['% Ligand inside pocket'].max()
-
-                logger.info(f"  {gene_name}: {total_coverage:.1f}% total, {top1_coverage:.1f}% top1")
-
-                return {
-                    'gene_name': gene_name,
-                    'pdb_id': pdb_id,
-                    'ligand_name': ligand_name,
-                    'total_coverage': min(100.0, total_coverage),
-                    'top1_coverage': min(100.0, top1_coverage),
-                    'num_pockets': len(result_df),
-                    'status': 'SUCCESS'
-                }
-
-        logger.warning(f"No valid results for {gene_name}")
-        return None
-
-    except Exception as e:
-        logger.error(f"Pose analysis failed for {gene_name}: {e}")
-        return None
 
 
 if __name__ == "__main__":
