@@ -1,4 +1,4 @@
-from analyse_pose_script import main as analyse_pose
+from proteome_scan.pose_binding_analysis.analyse_pose_script import main as analyse_pose
 import multiprocessing
 import os
 import pandas as pd
