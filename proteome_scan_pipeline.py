@@ -57,7 +57,7 @@ from proteome_scan import (
 from proteome_scan.pose_binding_analysis.multi_pose_run import get_overall_ligand_interactions, get_total_top_n_bucket_percentages
 from proteome_scan.pose_binding_analysis.analyse_pose_script import main as analyse_pose_main
 from proteome_scan.gene_guided_docking_utils.promiscuity_filter import (
-    load_non_promiscuous_targets,
+    load_promiscuous_targets,
     is_gene_promiscuous
 )
 
@@ -368,13 +368,13 @@ def run_pipeline(config_file: str, sdf_dir: str) -> None:
     if not os.path.exists(promis_file):
         logger.error(f"Promiscuity file not found at: {promis_file}")
         logger.warning("Proceeding without promiscuity filtering - all genes will be processed")
-        non_promiscuous_targets = set[str]()
+        promiscuous_targets = set[str]()
     else:
         logger.info(f"Loading promiscuity data from: {promis_file}")
-        non_promiscuous_targets: set[str] = load_non_promiscuous_targets(promis_file, threshold="25%_22")
-        if not non_promiscuous_targets:
+        promiscuous_targets: set[str] = load_promiscuous_targets(promis_file, threshold="25%_22")
+        if not promiscuous_targets:
             logger.warning("Could not load promiscuity data - proceeding without filtering")
-            non_promiscuous_targets = set[str]()
+            promiscuous_targets = set[str]()
 
     # Step 3: Run pose analysis (with promiscuity filtering)
     logger.info("Step 3: Running pose analysis with promiscuity filtering")
@@ -388,7 +388,7 @@ def run_pipeline(config_file: str, sdf_dir: str) -> None:
             gene_name_analysis: str = gene_config['gene_name']
 
             # Check promiscuity before pose analysis
-            if non_promiscuous_targets and is_gene_promiscuous(gene_name_analysis, non_promiscuous_targets):
+            if promiscuous_targets and is_gene_promiscuous(gene_name_analysis, promiscuous_targets):
                 logger.info(f"Skipping pose analysis for promiscuous gene: {gene_name_analysis}")
                 continue
 
@@ -482,7 +482,7 @@ def run_pipeline(config_file: str, sdf_dir: str) -> None:
             logger.info(f"{row['gene_name']} {row['pdb_id']} {row['ligand_name']}: {row['total_coverage']:.1f}% total, {row['top1_coverage']:.1f}% top1")
 
         # Show promiscuity filtering summary
-        if non_promiscuous_targets:
+        if promiscuous_targets:
             total_genes = len(valid_genes)
             analyzed_genes = len(set(results_df['gene_name']))
             skipped_genes = total_genes - analyzed_genes
