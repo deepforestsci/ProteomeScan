@@ -18,6 +18,43 @@ if DISABLE_WARNINGS:
 
 
 def vina_docking(raw_pdb_address, raw_ligand_address, scan_dir, exhaustiveness=32, num_modes=8):
+    """Perform molecular docking using DeepChem's VinaPoseGenerator.
+
+    Parameters
+    ----------
+    raw_pdb_address : str
+        Path to protein PDB file.
+    raw_ligand_address : str
+        Path to ligand SDF file.
+    scan_dir : str
+        Directory where temporary docking subdirectory will be created.
+    exhaustiveness : int, optional
+        Vina exhaustiveness parameter, default 32.
+    num_modes : int, optional
+        Maximum number of binding modes to generate, default 8.
+
+    Returns
+    -------
+    complex : tuple
+        Docked molecular complex from DeepChem.
+    scores : list
+        List of binding scores for each generated mode.
+
+    Notes
+    -----
+    Creates timestamped subdirectory in scan_dir for Vina output files.
+    Uses blind docking (no explicit pocket definition).
+
+    Examples
+    --------
+    >>> complex, scores = vina_docking(
+    ...     'protein.pdb',
+    ...     'ligand.sdf',
+    ...     './docking_results/'
+    ... )
+    >>> if scores:
+    ...     print(f"Best score: {scores[0]}")
+    """
     dir_name = "vina_docking_"+str(dt.datetime.now().isoformat())
     tmp = os.path.join(scan_dir, dir_name)
     os.mkdir(tmp)
@@ -38,12 +75,8 @@ def main(gene_name, ligand, ligand_address, scan_dir):
             print(f"Skipping {gene_name} {ligand} docking because results file already exists")
             return True
         os.makedirs(f"{scan_dir}/{gene_name}/complexes", exist_ok=True)
-        main_df = pd.DataFrame({'chains': {},
-                                'resolution': {},
-                                'coverage': {},
-                                'top_score': {},
-                                'scores': {},
-                                'gene_name': {}})
+        # Initialize empty list to collect results instead of empty DataFrame with empty dicts
+        results_list = []
 
         print("Docking for gene: ", gene_name)
         if not os.path.exists(f"{scan_dir}/{gene_name}/{gene_name}_pdbs.csv"):
@@ -71,17 +104,24 @@ def main(gene_name, ligand, ligand_address, scan_dir):
         df_docked['top_score'] = df_docked['scores'].apply(lambda x: x[0])
         df_docked = df_docked.set_index('id')
         merged_df = pd.merge(df, df_docked, how='left', left_index=True, right_index=True)
-        top_df = merged_df[['chains', 'resolution','coverage', 'top_score', 'scores']].sort_values(by='top_score')
+        top_df = merged_df[['top_score', 'scores']].sort_values(by='top_score')
         if len(top_df) > 2:
             top2_df = top_df.iloc[[0,1]]
         else:
             top2_df = top_df
         top2_df['gene_name'] = [gene_name]*len(top2_df)
-        main_df = pd.concat([main_df, top2_df])
+        results_list.append(top2_df)
 
-        sorted_maindf = main_df.sort_values(by='top_score')
+        # Create final DataFrame from results list instead of using empty DataFrame
         os.makedirs(f"{scan_dir}/{ligand}", exist_ok=True)
-        sorted_maindf.to_csv(f"{scan_dir}/{ligand}/top_score_{gene_name}_{ligand}.csv")
+        if results_list:
+            main_df = pd.concat(results_list, ignore_index=True)
+            sorted_maindf = main_df.sort_values(by='top_score')
+            sorted_maindf.to_csv(f"{scan_dir}/{ligand}/top_score_{gene_name}_{ligand}.csv")
+        else:
+            # Handle case where no results were generated - create empty CSV with correct columns
+            empty_df = pd.DataFrame(columns=['top_score', 'scores', 'gene_name'])
+            empty_df.to_csv(f"{scan_dir}/{ligand}/top_score_{gene_name}_{ligand}.csv")
         return True
     except Exception as e:
         print(f"Error in docking {gene_name} {ligand} => {e}")
