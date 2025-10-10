@@ -15,7 +15,6 @@ def separate_protein_ligand(pose_path, run_dir):
 
     # Select the ligand(s) with residue names LIG or UNL
     cmd.select("ligand", "resn LIG+UNL")
-    # cmd.select("ligand", "resn UNL")
 
     # Select the protein by excluding the ligand and water molecules
     cmd.select("protein_1", "polymer and not resn LIG+UNL and not resn HOH")
@@ -26,10 +25,6 @@ def separate_protein_ligand(pose_path, run_dir):
     cmd.save(ligand_path, "ligand")
     cmd.save(protein_path, "protein_1")
 
-    # Optional: Clean up selections
-    # cmd.delete("ligand")
-    # cmd.delete("protein_1")
-    # cmd.delete("complex")
     cmd.reinitialize()
     return ligand_path, protein_path
 
