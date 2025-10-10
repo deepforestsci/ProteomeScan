@@ -308,11 +308,6 @@ def get_cleaned_pdbs(gene_name, entry_id):
     MAX_COVERAGE, prot_seq = get_protein_details(protein_id)
     print(f"Fetching pdbs for canonical protein {protein_id}")
     pdbs_df = get_pdbs_df(protein_id)
-
-    # selected_pdbs = get_optimal_pdbs_df(pdbs_df, MAX_COVERAGE, min_res_val=2.5)
-    # id_chain_map = selected_pdbs['chain_type'].to_dict()
-
-    # failed_pdbs = download_pdb_file(list(id_chain_map.keys()), Path(gene_name))
     failed_pdbs = None
     while failed_pdbs != []:
         print("retrying get_optimal_pdbs")
