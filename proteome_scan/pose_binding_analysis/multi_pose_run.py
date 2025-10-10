@@ -18,15 +18,6 @@ def get_overall_ligand_interactions(df):
     percents = df['% Ligand inside pocket']
     total_percent = sum(percents) if sum(percents) <= 100 else 100
     return total_percent
-# deprecated
-    # weights = df['Druggability Score']
-    # max_score = df['Druggability Score'].max()
-    # if max_score> 0:
-    #     druggability_weighted_score = (percents * weights).sum()/ max_score 
-    # else:
-    #     druggability_weighted_score = 0
-    # druggability_weighted_score = druggability_weighted_score if druggability_weighted_score <=100 else 100
-    # return total_percent, druggability_weighted_score
 
 def get_total_top_n_bucket_percentages(df, n):
     """
@@ -69,7 +60,5 @@ if __name__ == '__main__':
         data.append(datapoint)
 
     df_results = pd.DataFrame(data)
-    # df_results['gene_name'] = df_results['complex'].apply(lambda x: x.split("_")[1])
-    # df_results['ligand'] = df_results['complex'].apply(lambda x: x.split("_")[2])
 
     df_results.to_csv("pose_analysis.csv", index=False)
