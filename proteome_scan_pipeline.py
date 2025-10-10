@@ -42,7 +42,7 @@ proteome_scan.analyse_pose_main : Pose analysis with fpocket using multi_pose ap
 import os
 import sys
 import json
-import pandas as pd  # type: ignore[import]
+import pandas as pd  
 import shutil
 import argparse
 from pathlib import Path
@@ -123,7 +123,7 @@ def run_docking_for_gene(
     >>> if success:
     ...     print("Docking completed successfully")
     """
-    from rdkit import Chem  # type: ignore
+    from rdkit import Chem  
 
     try:
         logger.info(f"Docking {gene_name} with {ligand_name}")
