@@ -60,5 +60,4 @@ if __name__ == '__main__':
         data.append(datapoint)
 
     df_results = pd.DataFrame(data)
-
     df_results.to_csv("pose_analysis.csv", index=False)
