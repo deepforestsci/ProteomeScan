@@ -3,6 +3,7 @@ import shutil
 import json
 import pandas as pd
 from proteome_scan import get_cleaned_pdbs, run_docking, parse_results
+from proteome_scan.post_scan_analysis import filter_promiscuous_targets, run_multi_pose_analysis
 
 
 with open('data/ligands/ligand_SMILES.json', 'r') as f:
@@ -63,6 +64,23 @@ def run_proteome_scan(ligands, gene_names, scan_dir):
                 print(f"Docking {gene_name} with {ligand} failed")
 
     parse_results(ligands, scan_dir) # stores results in scan_dir/scan_results
+
+    # filter promiscuous targets
+    thresholds = [
+                    (15, 1), # in top 15% of all targets and common in 1 target
+                ]
+    filtered_results_dict = filter_promiscuous_targets(thresholds, scan_dir)
+    print(filtered_results_dict)
+
+    # run pose binding analysis (example for one gene)
+    pose_analysis_gene = "GBA3"
+    complexes = os.listdir(os.path.join(scan_dir, pose_analysis_gene, "complexes"))
+    df_results = run_multi_pose_analysis(complexes, np=8)
+    os.makedirs("pose_analysis", exist_ok=True)
+    df_results.to_csv(os.path.join("pose_analysis", f"{pose_analysis_gene}_pose_analysis.csv"), index=False)
+    
+    print("Proteome scan completed")
+
 
 if __name__ == "__main__":
     ligands = ['Trametinib', 'Tucatinib']
