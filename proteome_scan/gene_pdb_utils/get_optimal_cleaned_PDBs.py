@@ -9,7 +9,6 @@ import subprocess
 import logging
 from pathlib import Path
 
-import os
 from concurrent.futures import ThreadPoolExecutor
 
 # Set up logging
@@ -249,7 +248,6 @@ def pdb_cleaner(gene_name, id, remove_chains=[]):
 
     try:
         from rdkit import Chem  # type: ignore
-        from rdkit.Chem import AllChem  # type: ignore
     except ModuleNotFoundError:
         raise ImportError("This function requires RDKit to be installed.")
     try:
@@ -308,6 +306,11 @@ def get_cleaned_pdbs(gene_name, entry_id):
     MAX_COVERAGE, prot_seq = get_protein_details(protein_id)
     print(f"Fetching pdbs for canonical protein {protein_id}")
     pdbs_df = get_pdbs_df(protein_id)
+
+    # selected_pdbs = get_optimal_pdbs_df(pdbs_df, MAX_COVERAGE, min_res_val=2.5)
+    # id_chain_map = selected_pdbs['chain_type'].to_dict()
+
+    # failed_pdbs = download_pdb_file(list(id_chain_map.keys()), Path(gene_name))
     failed_pdbs = None
     while failed_pdbs != []:
         print("retrying get_optimal_pdbs")
@@ -376,9 +379,6 @@ if __name__ == "__main__":
     to_run = list(data.values())
 
     print(len(to_run))
-
-    from concurrent.futures import ProcessPoolExecutor
-    from tqdm import tqdm
 
     with ProcessPoolExecutor(max_workers=5) as executor:
         results = list(tqdm(executor.map(run, to_run), desc="Parallel Processing", total=len(to_run)))
