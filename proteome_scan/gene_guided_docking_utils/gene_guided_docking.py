@@ -87,7 +87,6 @@ def main(gene_name, ligand, ligand_address, scan_dir):
             pdb_address = os.path.join(scan_dir, df.loc[id]['path'])
             try:
                 assert os.path.exists(pdb_address), f"pdb file not found for {id}"
-                print(ligand_address)
                 assert os.path.exists(ligand_address), f"ligand file not found for {ligand}"
                 complex, score = vina_docking(pdb_address, ligand_address, scan_dir)
             except Exception as e:
