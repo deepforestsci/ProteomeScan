@@ -1,13 +1,16 @@
 import os
 import pandas as pd
 import multiprocessing
+import os
 from proteome_scan.post_scan_analysis.pose_binding_analysis.analyse_pose_script import main as analyse_pose
 
-temp_results_dir = "/temp_results"
+# Write results to a local folder to avoid read-only filesystem issues
+temp_results_dir = os.path.join(os.getcwd(), "temp_results")
 
 def run_analyse_pose(complex_path):
     try:
-        complex_path_ = os.path.join(root, complex_path)
+        # If caller provided an absolute/valid path, use it directly; otherwise, fall back to joining with root
+        complex_path_ = complex_path if os.path.exists(complex_path) else os.path.join(root, complex_path)
         analyse_pose(pose_path=complex_path_, results_dir=temp_results_dir, is_clean_up=True)
         return True
     except Exception as e:
@@ -29,6 +32,8 @@ def get_total_top_n_bucket_percentages(df, n):
 
 def run_multi_pose_analysis(complexes, np=4):
     global temp_results_dir
+    # Ensure results directory exists
+    os.makedirs(temp_results_dir, exist_ok=True)
 
     with multiprocessing.Pool(processes=np) as pool:
         results = pool.map(run_analyse_pose, complexes)

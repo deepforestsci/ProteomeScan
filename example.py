@@ -74,7 +74,8 @@ def run_proteome_scan(ligands, gene_names, scan_dir):
 
     # run pose binding analysis (example for one gene)
     pose_analysis_gene = "GBA3"
-    complexes = os.listdir(os.path.join(scan_dir, pose_analysis_gene, "complexes"))
+    complexes_dir = os.path.join(scan_dir, pose_analysis_gene, "complexes")
+    complexes = [os.path.join(complexes_dir, f) for f in os.listdir(complexes_dir)]
     df_results = run_multi_pose_analysis(complexes, np=8)
     os.makedirs("pose_analysis", exist_ok=True)
     df_results.to_csv(os.path.join("pose_analysis", f"{pose_analysis_gene}_pose_analysis.csv"), index=False)

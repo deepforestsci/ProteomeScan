@@ -34,9 +34,15 @@ def get_promiscuous_targets(thresholds: List[tuple], scan_dir: str) -> dict:
                 temp_df: pd.DataFrame = pd.read_csv(file_path)
                 df_list.append(temp_df[:int(len(temp_df)*target_threshold)+1])
 
-        f_df: pd.DataFrame = pd.concat(df_list)['gene_name'].value_counts().reset_index()
-        f_df.rename(columns={'index': 'gene name', 'gene_name': 'occurrence in top'}, inplace=True)
-        common_occurence: List[str] = f_df[f_df['occurrence in top']>=n]['gene name'].to_list()
+        # Count occurrences of each gene in the top-N% across ligands
+        # Standardize to columns: ['gene_name', 'occurrence in top']
+        f_df: pd.DataFrame = (
+            pd.concat(df_list)['gene_name']
+            .value_counts()
+            .rename_axis('gene_name')
+            .reset_index(name='occurrence in top')
+        )
+        common_occurence: List[str] = f_df[f_df['occurrence in top'] >= n]['gene_name'].to_list()
         raw_key: tuple = (str(int(target_threshold*100)), str(n))
         key: str = "%_".join(raw_key)
         data_promis[key] = common_occurence
