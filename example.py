@@ -1,10 +1,31 @@
+"""
+Example pipeline entrypoint for ProteomeScan.
+
+This script demonstrates a complete proteome-guided docking run:
+
+- Prepares per-gene PDB structures (downloads/cleans if missing, otherwise
+  resumes)
+- Docks each ligand against selected PDBs for each gene
+- Aggregates per-ligand top hits into `scan_dir/scan_results/`
+- Filters promiscuous targets (optionally writing filtered CSVs)
+- Runs pose-binding analysis for one example gene and writes a CSV summary
+
+Notes
+-----
+- The pipeline is resumable/idempotent: existing gene folders and docking
+  outputs are detected and skipped.
+- Inputs are read from `data/`, outputs are written under `scan_dir/` and
+  the local working directory (`pose_analysis/`, temp results for pose
+  analysis).
+"""
+
 import os
 import shutil
 import json
 import pandas as pd
 from proteome_scan import get_cleaned_pdbs, run_docking, parse_results
-from proteome_scan.post_scan_analysis import filter_promiscuous_targets, run_multi_pose_analysis
-
+from proteome_scan.post_scan_analysis import (
+    filter_promiscuous_targets, run_multi_pose_analysis)
 
 with open('data/ligands/ligand_SMILES.json', 'r') as f:
     smiles_data = json.load(f)['ligand_smiles']
@@ -19,8 +40,51 @@ proteome_scan_gene_df = pd.read_csv("data/ProteomeScan_7657_genes.csv")
 
 def run_proteome_scan(ligands, gene_names, scan_dir):
     """
-    Runs the proteome scan for the given ligands and gene names
-    and stores top results in `{scan_dir}/scan_results`.
+    Run a resumable proteome-wide docking scan and post-processing pipeline.
+
+    Parameters
+    ----------
+    ligands : list[str]
+        Ligand display names. Each must have a corresponding processed SDF at
+        `data/ligands/processed/Processed_{ligand}.sdf`.
+    gene_names : list[str]
+        Gene symbols to scan. Each must exist in
+        `data/ProteomeScan_7657_genes.csv` with a valid UniProt entry under
+        column `Gene Names (primary)`.
+    scan_dir : str
+        Output directory for this run. Created if it does not exist. All
+        per-gene data, complexes, and aggregated results are stored here.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    ValueError
+        If a gene in `gene_names` is not found in the ProteomeScan gene table.
+    Exception
+        If required docking prerequisites for a gene are missing (e.g., its
+        `{gene}_pdbs.csv`).
+
+    Notes
+    -----
+    - Idempotent behavior: existing gene folders under `scan_dir/` and existing
+      per-ligand per-gene top-score CSVs are detected and skipped, allowing
+      interrupted runs to resume.
+    - Aggregated per-ligand top tables are written to `scan_dir/scan_results/`.
+    - Promiscuity-filtered copies are written to
+      `scan_dir/scan_results_promiscuity_filtered_{M%}_{N}/`.
+    - Pose analysis writes a summary CSV to `pose_analysis/` and uses a
+      temporary results directory managed by the pose-analysis module.
+
+    Examples
+    --------
+    >>> run_proteome_scan(
+    ...     ligands=["Trametinib", "Tucatinib"],
+    ...     gene_names=["GBA3", "SLC7A11"],
+    ...     scan_dir="proteome_scan_test1",
+    ... )
     """
     os.makedirs(scan_dir, exist_ok=True)
     # Add known target genes to the gene_names list
@@ -30,56 +94,70 @@ def run_proteome_scan(ligands, gene_names, scan_dir):
         ligand_smiles.append(smiles_data[ligand])
 
     # get ligand sdf addresses
-    ligand_sdf_addresses = {ligand: f"data/ligands/processed/Processed_{ligand}.sdf" for ligand in ligands}
+    ligand_sdf_addresses = {
+        ligand: f"data/ligands/processed/Processed_{ligand}.sdf"
+        for ligand in ligands
+    }
 
     # get pdbs and their metadata for each gene
     gene_metadata = {}
     for gene_name in gene_names:
         gene_metadata[gene_name] = {}
         s = proteome_scan_gene_df.loc[
-        proteome_scan_gene_df['Gene Names (primary)'].eq(gene_name), 'Entry']
+            proteome_scan_gene_df['Gene Names (primary)'].eq(gene_name),
+            'Entry']
         if not s.empty:
             entry_id = s.iloc[0]
         else:
-            raise ValueError(f"Gene {gene_name} not found in ProteomeScan gene dataframe")
+            raise ValueError(
+                f"Gene {gene_name} not found in ProteomeScan gene dataframe")
         gene_metadata[gene_name]['entry_id'] = entry_id
         if os.path.exists(f"./{scan_dir}/{gene_name}"):
-            print(f"skipping {gene_name} because it already exists in {scan_dir}")
-            df_metadata = pd.read_csv(f"./{scan_dir}/{gene_name}/{gene_name}_pdbs.csv", index_col='id')
+            print(
+                f"skipping {gene_name} because it already exists in {scan_dir}"
+            )
+            df_metadata = pd.read_csv(
+                f"./{scan_dir}/{gene_name}/{gene_name}_pdbs.csv",
+                index_col='id')
         else:
             print(f"fetching pdbs for {gene_name}")
             df_metadata = get_cleaned_pdbs(gene_name, entry_id)
             # move gene data to scan_dir
             print(f"moving {gene_name} data to {scan_dir}")
             shutil.move(f"./{gene_name}", f"./{scan_dir}/{gene_name}")
-        gene_metadata[gene_name]['pdbs_metadata'] = df_metadata.to_dict('records')
-
+        gene_metadata[gene_name]['pdbs_metadata'] = df_metadata.to_dict(
+            'records')
 
     for gene_name in gene_names:
         for ligand in ligands:
             print(f"Docking selected {gene_name} PDBs with {ligand}")
-            if run_docking(gene_name, ligand, ligand_sdf_addresses[ligand], scan_dir):
+            if run_docking(gene_name, ligand, ligand_sdf_addresses[ligand],
+                           scan_dir):
                 print(f"Docking {gene_name} with {ligand} completed")
             else:
                 print(f"Docking {gene_name} with {ligand} failed")
 
-    parse_results(ligands, scan_dir) # stores results in scan_dir/scan_results
+    parse_results(ligands, scan_dir)  # stores results in scan_dir/scan_results
 
     # filter promiscuous targets
     thresholds = [
-                    (15, 1), # in top 15% of all targets and common in 1 target
-                ]
+        (15, 1),  # in top 15% of all targets and common in 1 target
+    ]
     filtered_results_dict = filter_promiscuous_targets(thresholds, scan_dir)
     print(filtered_results_dict)
 
     # run pose binding analysis (example for one gene)
     pose_analysis_gene = "GBA3"
     complexes_dir = os.path.join(scan_dir, pose_analysis_gene, "complexes")
-    complexes = [os.path.join(complexes_dir, f) for f in os.listdir(complexes_dir)]
+    complexes = [
+        os.path.join(complexes_dir, f) for f in os.listdir(complexes_dir)
+    ]
     df_results = run_multi_pose_analysis(complexes, np=8)
     os.makedirs("pose_analysis", exist_ok=True)
-    df_results.to_csv(os.path.join("pose_analysis", f"{pose_analysis_gene}_pose_analysis.csv"), index=False)
-    
+    df_results.to_csv(os.path.join("pose_analysis",
+                                   f"{pose_analysis_gene}_pose_analysis.csv"),
+                      index=False)
+
     print("Proteome scan completed")
 
 
