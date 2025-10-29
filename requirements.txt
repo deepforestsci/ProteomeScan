@@ -1,0 +1,10 @@
+pymol
+deepchem
+biopython
+openmm
+pdbfixer
+rdkit
+pandas
+numpy
+matplotlib
+tqdm

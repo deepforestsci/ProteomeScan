@@ -5,17 +5,50 @@ import json
 from tqdm import tqdm
 import re
 import pandas as pd
-
+from typing import Callable, Optional
+import matplotlib.pyplot as plt
+import numpy as np
+from Bio import PDB
 import os
 from concurrent.futures import ThreadPoolExecutor
 
 
-def run_on_multiple_threads(fn, values, max_workers):
+def run_on_multiple_threads(fn: Callable, values: list, max_workers: int) -> list:
+    """
+    Run a function on multiple threads.
+
+    Parameters
+    ----------
+    fn: Callable
+        Function to run on multiple threads.
+    values: list
+        List of values to run the function on.
+    max_workers: int
+        Maximum number of workers to use.
+
+    Returns
+    -------
+    results: list
+        List of results from the function.
+    """
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(tqdm(executor.map(fn, values), total=len(values), desc="Processing"))
     return list(results)
 
-def get_canon_pdb(gene_name):
+def get_canon_pdb(gene_name: str) -> list:
+    """
+    Get the canonical protein id for a given gene name from UniProt.
+
+    Parameters
+    ----------
+    gene_name: str
+        Name of the gene.
+
+    Returns
+    -------
+    results: list
+        List of tuples containing the protein name and the protein id.
+    """
     print("---------")
     print(gene_name)
 
@@ -37,12 +70,27 @@ def get_canon_pdb(gene_name):
         print(results)
         return results
 
-def get_pdbs_df(protein_id):
-    # pdb_list = []
+def get_pdbs_df(protein_id: str) -> pd.DataFrame:
+    """
+    Get the pdb ids for a given uniprot protein id from PDBe-KB.
+
+    Parameters
+    ----------
+    protein_id: str
+        UniProt protein id.
+
+    Returns
+    -------
+    pdbs_df: pd.DataFrame
+        Dataframe containing the pdb ids, resolutions, and coverage.
+    """
     search_results = requests.get(f"https://www.ebi.ac.uk/pdbe/graph-api/uniprot/protvista/unipdb/{protein_id}")
     data = search_results.json()
-    # for pdb_struct in data[protein_id]['tracks'][0]['data']:
+
     def get_pdb(pdb_struct):
+        """
+        Get details of a given pdb file from metadata from PDBe-KB search results.
+        """
         output = {'type': 'PDB'}
         pdb_id = pdb_struct['label']['id']
         output['id'] = pdb_id
@@ -90,8 +138,6 @@ def get_pdbs_df(protein_id):
         else:
             output['chains'] = None
             print(f"No href link found for chains ({pdb_id})")
-        # print(output)
-        # pdb_list.append(output)
         return output
 
     pdb_list = run_on_multiple_threads(get_pdb, data[protein_id]['tracks'][0]['data'], max_workers=5)
@@ -108,18 +154,39 @@ def get_pdbs_df(protein_id):
     return pdbs_df
 
 
-def get_protein_details(protein_id):
+def get_protein_details(protein_id: str) -> tuple[int, str]:
+    """
+    Get the protein details for a given uniprot protein id from EMBL-EBI Proteins API.
+
+    Parameters
+    ----------
+    protein_id: str
+        UniProt protein id.
+
+    Returns
+    -------
+    tuple[int, str]
+        Tuple containing the length of the protein and the protein sequence.
+    """
     search_results = requests.get(f"https://www.ebi.ac.uk/proteins/api/proteins/{protein_id}")
     data = search_results.json()
     length, seq = data['sequence']['length'], data['sequence']['sequence']
     return length, seq
 
 
+def visualize_ranges(ranges: list, selected_ranges: list, MAX: int) -> None:
+    """
+    Visualize the ranges for a given protein in a plot.
 
-import matplotlib.pyplot as plt
-import numpy as np
-
-def visualize_ranges(ranges, selected_ranges, MAX):
+    Parameters
+    ----------
+    ranges: list
+        List of all possible ranges.
+    selected_ranges: list
+        List of selected ranges (optimal ranges).
+    MAX: int
+        Maximum length of the protein.
+    """
     plt.figure(figsize=(15, 5))
     for r in ranges:
         plt.plot([r.start/MAX*10, r.end/MAX*10], [1, 1], lw=6, alpha=0.2, label=f'Range({r.start}, {r.end}, {r.error_score})' if r not in selected_ranges else None)
@@ -142,17 +209,82 @@ def visualize_ranges(ranges, selected_ranges, MAX):
 
 
 class Range:
-    def __init__(self, id, start, end, error_score):
+    """
+    Class to represent a range of sequence positions in a pdb file of a protein.
+    """
+    def __init__(self, id: str, start: int, end: int, error_score: float) -> None:
+        """
+        Initialize a Range object.
+
+        Parameters
+        ----------
+        id: str
+            PDB id.
+        start: int
+            Start sequence position of the range.
+        end: int
+            End sequence position of the range.
+        error_score: float
+            Error score of the range.
+        """
         self.id = id
         self.start = start
         self.end = end
         self.error_score = error_score
         self.coverage = end-start
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the Range object.
+
+        Returns
+        -------
+        str: string representation of the Range object.
+        """
         return f"Range({self.id}, {self.start}, {self.end}, {self.error_score}, coverage = {self.coverage})"
 
-def select_ranges(ranges):
+def select_ranges(ranges: list) -> list:
+    """
+    Select the optimal ranges from a list of Range objects using the following algorithm:
+    ```
+    Algorithm: Select_Optimal_Ranges
+    Input: A list of PDB metadata, each containing:
+        • pdb_id
+        • start_position (on protein sequence)
+        • end_position (on protein sequence)
+        • resolution
+        • coverage
+    sorted_list ← Sort the list by start_position, then by end_position
+    selected_ranges ← [ ]
+    Set last_end_position ← −∞
+    for all range in sorted_list do
+        if range.start_position > last_end_position then
+            Add range to selected_ranges
+            last_end_position ← range.end_position
+        else
+            Let last ← last element in selected_ranges
+            if range.resolution < last.resolution then
+                Replace last with range in selected_ranges
+            else if abs(range.resolution - last.resolution) < threshold and range.coverage > last.coverage then
+                Replace last with range in selected_ranges
+            end if
+            last_end_position ← max(last_end_position, range.end_position)
+        end if
+    end for
+    selected_PDBs ← Map selected_ranges to their corresponding pdb_ids
+    return selected_PDBs
+    ```
+
+    Parameters
+    ----------
+    ranges: list
+        List of Range objects to select from.
+
+    Returns
+    -------
+    selected_ranges: list
+        List of selected Range objects.
+    """
     # Sort ranges by starting point, then by end point
     sorted_ranges = sorted(ranges, key=lambda r: (r.start, r.end))
     print(sorted_ranges)
@@ -173,7 +305,24 @@ def select_ranges(ranges):
                 last_end = max(last_end, current_range.end)
     return selected_ranges
 
-def get_optimal_pdbs_df(df, seq_length, min_res_val=2.5):
+def get_optimal_pdbs_df(df: pd.DataFrame, seq_length: int, min_res_val: float=2.5) -> pd.DataFrame:
+    """
+    Get the optimal pdb files for a given dataframe of pdb files.
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Dataframe of pdb files.
+    seq_length: int
+        Length of the protein sequence.
+    min_res_val: float
+        Minimum resolution value to consider.
+
+    Returns
+    -------
+    selected_pdbs: pd.DataFrame
+        Dataframe of selected pdb files.
+    """
     df['range_obj'] = df.apply(lambda x: Range(x.id, x.chain_start, x.chain_end, x.resolution), axis=1)
     min_res_for_max_cov = min(df[df['coverage']==max(df['coverage'])]['resolution'].values)
 
@@ -212,7 +361,22 @@ def get_optimal_pdbs_df(df, seq_length, min_res_val=2.5):
     return selected_pdbs
 
 
-def download_pdbs(gene_name, pdb_id_list):
+def download_pdbs(gene_name: str, pdb_id_list: list) -> list:
+    """
+    Download the pdb files for a given list of pdb ids from PDBe.
+
+    Parameters
+    ----------
+    gene_name: str
+        Name of the gene.
+    pdb_id_list: list
+        List of pdb ids to download from PDBe.
+
+    Returns
+    -------
+    failed_pdbs: list
+        List of pdb ids that failed to download from PDBe.
+    """
     failed_pdbs = []
     for pdb_id in pdb_id_list:
         if not os.path.isdir(f'{gene_name}'):
@@ -228,9 +392,20 @@ def download_pdbs(gene_name, pdb_id_list):
     return failed_pdbs
 
 
-from Bio import PDB
+def get_chain_ids(pdb_file: str) -> list:
+    """
+    Get the chain ids for a given pdb file.
 
-def get_chain_ids(pdb_file):
+    Parameters
+    ----------
+    pdb_file: str
+        Path to the pdb file.
+
+    Returns
+    -------
+    chain_ids: list
+        List of chain ids in the pdb file.
+    """
     # Create a PDB parser
     parser = PDB.PDBParser(QUIET=True)
 
@@ -246,7 +421,25 @@ def get_chain_ids(pdb_file):
     return list(chain_ids)
 
 
-def pdb_cleaner(gene_name, id, remove_chains=[]):
+def pdb_cleaner(gene_name: str, id: str, remove_chains: list=[]) -> Optional[str]:
+    """
+    Clean a given pdb file using PDBFixer.
+
+    Parameters
+    ----------
+    gene_name: str
+        Name of the gene.
+    id: str
+        PDB id.
+    remove_chains: list
+        List of chain ids to remove from the pdb file.
+
+    Returns
+    -------
+    output_path: Optional[str]
+        Path to the cleaned pdb file.
+        None if the pdb file is not cleaned successfully.
+    """
     # remove_chains = []
     replace_nonstandard_residues = None
     # fix_add_missing_atoms = True
@@ -311,7 +504,22 @@ def pdb_cleaner(gene_name, id, remove_chains=[]):
             return None
 
 
-def get_cleaned_pdbs(gene_name, entry_id):
+def get_cleaned_pdbs(gene_name: str, entry_id: str) -> pd.DataFrame:
+    """
+    Get the cleaned pdb files for a given gene name and entry id from UniProt.
+
+    Parameters
+    ----------
+    gene_name: str
+        Name of the gene.
+    entry_id: str
+        Entry id of the protein from UniProt.
+
+    Returns
+    -------
+    selected_pdbs: pd.DataFrame
+        Dataframe of selected pdb files with the path to the cleaned pdb files.
+    """
     protein_id = entry_id
 
     MAX_COVERAGE, prot_seq = get_protein_details(protein_id)
@@ -365,7 +573,20 @@ def get_cleaned_pdbs(gene_name, entry_id):
     return selected_pdbs
 
 
-def run(item):
+def run(item: dict) -> Optional[pd.DataFrame]:
+    """
+    Run the get_cleaned_pdbs function for a given item (entry id and gene name).
+    If the pdb files are already downloaded, skip the gene.
+
+    Parameters
+    ----------
+    item: dict
+        Dictionary containing the entry id and the gene name.
+
+    Returns
+    -------
+    output: Optional[pd.DataFrame]
+    """
     entry_id = item['Entry']
     primary_genes = item['Gene Names (primary; single)']
     gene_name = primary_genes.split('; ')[0].strip()
@@ -381,6 +602,7 @@ def run(item):
     return output
 
 if __name__ == "__main__":
+    # Download optimal experimental PDB files for all valid 7681 genes in human proteome.
     df = pd.read_csv("../../data/gene_selection_raw/experimental/valid_for_pipeline_7681_human_prot.csv")
     data = df[['Entry', 'Gene Names (primary; single)']].to_dict('index')
 

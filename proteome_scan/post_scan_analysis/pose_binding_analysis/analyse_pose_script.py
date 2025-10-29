@@ -5,7 +5,22 @@ from pymol import cmd, stored
 import shutil
 
 
-def separate_protein_ligand(pose_path, run_dir):
+def separate_protein_ligand(pose_path: str, run_dir: str) -> tuple[str, str]:
+    """
+    Separate the protein and ligand from a complex PDB file using PyMOL.
+
+    Parameters
+    ----------
+    pose_path: str
+        Path to the complex PDB file.
+    run_dir: str
+        Path to the directory to save the separate protein and ligand PDB files.
+
+    Returns
+    -------
+    tuple[str, str]
+        Tuple containing the path to the ligand PDB file and the path to the protein PDB file.
+    """
     # Load the complex PDB file
     cmd.load(pose_path, "complex")
 
@@ -29,10 +44,31 @@ def separate_protein_ligand(pose_path, run_dir):
     cmd.reinitialize()
     return ligand_path, protein_path
 
-def run_fpocket(protein_path):
+def run_fpocket(protein_path: str) -> None:
+    """
+    Run fpocket on a given protein PDB file.
+
+    Parameters
+    ----------
+    protein_path: str
+        Path to the protein PDB file.
+    """
     os.system(f"fpocket -f {protein_path}")
 
-def parse_pocket_data(file_path):
+def parse_pocket_data(file_path: str) -> list:
+    """
+    Parse the pocket data from a given fpocket output info file.
+
+    Parameters
+    ----------
+    file_path: str
+        Path to the fpocket output info file.
+
+    Returns
+    -------
+    pockets: list
+        List of pocket metadata.
+    """
     with open(file_path, 'r') as file:
         content = file.read()
 
@@ -64,7 +100,24 @@ def parse_pocket_data(file_path):
 
     return pockets
 
-def analyse_overlaps(ligand_path, pockets_out_path, pockets_df):
+def analyse_overlaps(ligand_path: str, pockets_out_path: str, pockets_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Analyse the overlaps between the ligand and the pockets.
+
+    Parameters
+    ----------
+    ligand_path: str
+        Path to the ligand PDB file.
+    pockets_out_path: str
+        Path to the pockets out PDB file.
+    pockets_df: pd.DataFrame
+        Dataframe of fpocket output metadata.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame]
+        Tuple containing the updated pockets dataframe and the analysis dataframe (subset of the pockets dataframe).
+    """
     # Load structures
     cmd.load(ligand_path)
     cmd.load(pockets_out_path)
@@ -111,7 +164,23 @@ def analyse_overlaps(ligand_path, pockets_out_path, pockets_df):
     cmd.reinitialize()
     return pockets_df, analysis_df
 
-def main(pose_path, results_dir, is_clean_up=False):
+def main(pose_path: str, results_dir: str, is_clean_up: bool=False) -> None:
+    """
+    Main function to analyse the overlaps between the ligand and the pockets in a given complex PDB file.
+
+    Parameters
+    ----------
+    pose_path: str
+        Path to the complex PDB file.
+    results_dir: str
+        Path to the directory to save the results.
+    is_clean_up: bool
+        Whether to clean up the temporary files.
+
+    Returns
+    -------
+    None
+    """
     run_name = os.path.basename(pose_path).split('.')[0]
     run_dir = os.path.join(os.getcwd(), run_name)
     os.makedirs(run_dir, exist_ok=True)

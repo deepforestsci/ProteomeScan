@@ -1,0 +1,129 @@
+import os
+import pandas as pd
+import multiprocessing
+import os
+from proteome_scan.post_scan_analysis.pose_binding_analysis.analyse_pose_script import main as analyse_pose
+
+# Write results to a local folder to avoid read-only filesystem issues
+temp_results_dir = os.path.join(os.getcwd(), "temp_results")
+
+def run_analyse_pose(complex_path: str) -> bool:
+    """
+    Run the analyse_pose function for a given complex PDB file.
+
+    Parameters
+    ----------
+    complex_path: str
+        Path to the complex PDB file.
+
+    Returns
+    -------
+    bool
+        True if the analysis is successful, False otherwise.
+    """
+    try:
+        # If caller provided an absolute/valid path, use it directly; otherwise, fall back to joining with root
+        complex_path_ = complex_path if os.path.exists(complex_path) else os.path.join(root, complex_path)
+        analyse_pose(pose_path=complex_path_, results_dir=temp_results_dir, is_clean_up=True)
+        return True
+    except Exception as e:
+        print(f"error {complex_path}: {e}")
+        return False
+
+def get_overall_ligand_interactions(df: pd.DataFrame) -> float:
+    """
+    Get the overall percentage of ligand inside pockets.
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Dataframe of fpocket output metadata updated with the overlaps between the ligand and the pockets.
+
+    Returns
+    -------
+    float
+        Overall percentage of ligand inside all pockets.
+    """
+    percents = df['% Ligand inside pocket']
+    total_percent = sum(percents) if sum(percents) <= 100 else 100
+    return total_percent
+
+def get_total_top_n_bucket_percentages(df: pd.DataFrame, n: int) -> float:
+    """
+    Extract the percentages of ligand inside the top-n ranked pockets based on druggability scores.
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Dataframe of fpocket output metadata updated with the overlaps between the ligand and the pockets.
+    n: int
+        Number of top ranked pockets to consider.
+
+    Returns
+    -------
+    float
+        Overall percentage of ligand inside the top-n ranked pockets.
+    """
+    sum_ = df[df['Pocket_Druggability_Rank']<=n]['% Ligand inside pocket'].to_numpy().sum()
+    sum_ = min(sum_, 100)
+    return sum_
+
+def run_multi_pose_analysis(complexes: list, np: int=4) -> pd.DataFrame:
+    """
+    Run the analyse_pose function for a given list of complex PDB files.
+
+    Parameters
+    ----------
+    complexes: list
+        List of paths to the complex PDB files.
+    np: int
+        Number of processes to use.
+
+    Returns
+    -------
+    df_results: pd.DataFrame
+        Dataframe of results from the analyse_pose function for each complex PDB file.
+    """
+    global temp_results_dir
+    # Ensure results directory exists
+    os.makedirs(temp_results_dir, exist_ok=True)
+
+    with multiprocessing.Pool(processes=np) as pool:
+        results = pool.map(run_analyse_pose, complexes)
+
+    failed_poses = []
+    for c, r in zip(complexes, results):
+        if not r:
+            failed_poses.append(c)
+
+    data = []
+    for complex_path in complexes:
+        datapoint = {}
+        run_name = os.path.basename(complex_path).split('.')[0]
+        datapoint['complex'] = run_name
+        if complex_path in failed_poses:
+            datapoint['total % Ligand inside pocket'] = None
+            for n in [1, 5, 10]:
+                datapoint[f'total % Ligand inside pockets (top{n} pockets)'] = None
+            data.append(datapoint)
+            continue
+        results_path = os.path.join(temp_results_dir, run_name, "full_analysis.csv")
+        df = pd.read_csv(results_path)
+        total_percent = get_overall_ligand_interactions(df)
+        datapoint['total % Ligand inside pockets'] = total_percent
+
+        for n in [1, 5, 10]:
+            datapoint[f'total % Ligand inside pockets (top{n} pockets)'] = get_total_top_n_bucket_percentages(df, n)
+        data.append(datapoint)
+
+    df_results = pd.DataFrame(data)
+    # df_results['gene_name'] = df_results['complex'].apply(lambda x: x.split("_")[1])
+    # df_results['ligand'] = df_results['complex'].apply(lambda x: x.split("_")[2])
+    return df_results
+
+
+if __name__ == '__main__':
+    root = "complexes"
+    complexes = os.listdir(root)
+    df_results = run_multi_pose_analysis(complexes, np=8)
+    df_results.to_csv("pose_analysis.csv", index=False)
