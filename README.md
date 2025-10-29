@@ -1,9 +1,38 @@
 # ProteomeScan
-ProteomeScan
+ProteomeScan is a Python toolkit for large-scale human proteome scan screening against a given set of drugs/ligands.
+
+## Requirements
+
+- Python 3.10 and above
+- Create a conda environment and install dependencies from `requirements.txt`
+- Internet connection (for UniProt/PDBe/PDBe-KB access)
+- Your ligand files (see `/data` folder below)
+
+## Data Folder
+
+- `data/gene_selection_raw`: Contains files used to filter Human Proteome and shortlist gene names for ProteomeScan.
+- `data/ligands/processed/`: **Place your ligand SDF files here** before running the pipeline. Each ligand should be provided as its own file named as `Processed_<LigandName>.sdf`.
+- If you have raw Ligand SMILES, use `data/ligands/prepare_ligands.py`.
+
+## Quick Start
+
+**To run the full pipeline, simply execute:**
+
+```bash
+python example.py
+```
+
+`example.py` is provided as an executable, end-to-end pipeline with example gene and ligand lists. You can customize these lists or provide your own, and place the corresponding ligand `.sdf` files in `data/ligands/processed/`.
+
+What happens:
+- For each gene, the tool fetches optimal (curated, best) PDBs by scraping UniProt, PDBe, and PDBe-KB.
+- Each ligand is docked against optimal PDBs for each gene target.
+- All results and logs are saved in the provided output directory.
+- Post-scan run includes promiscuity filtering and pose analysis.
 
 ## Pseudo-Code
 
-Algorithm: Proteome Scan Algorithm
+For workflow logic at a high level, see the pseudo-code below:
 
 ```
 Require: ligands list, gene names list

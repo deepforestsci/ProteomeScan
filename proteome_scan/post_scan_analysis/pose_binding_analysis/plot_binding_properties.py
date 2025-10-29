@@ -2,8 +2,24 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
-def plot_grouped_bars(df, columns, title, root):
+def plot_grouped_bars(df: pd.DataFrame, columns: list, title: str, root: str) -> None:
     """
+    Plot the grouped bars for a given dataframe for each pocket id in complex.
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Dataframe to plot.
+    columns: list
+        List of columns to plot.
+    title: str
+        Title of the plot.
+    root: str
+        Root directory to save the plot.
+
+    Returns
+    -------
+    None
     """
     if len(columns) != 3:
         raise ValueError("This function requires exactly 3 columns.")

@@ -4,7 +4,7 @@ import json
 from typing import Dict, List
 
 
-def get_promiscuous_targets(thresholds: List[tuple], scan_dir: str) -> dict:
+def get_promiscuous_targets(thresholds: List[tuple], scan_dir: str) -> Dict:
     """
     Get the promiscuous targets for the given thresholds and scan results directory
     
@@ -56,21 +56,21 @@ def get_promiscuous_targets(thresholds: List[tuple], scan_dir: str) -> dict:
     return data_promis
 
 
-def filter_promiscuous_targets(thresholds: list[tuple], scan_dir: str) -> dict:
+def filter_promiscuous_targets(thresholds: List[tuple], scan_dir: str) -> Dict:
     """
     Filter the promiscuous targets for the given thresholds and scan results directory
 
     Parameters
     ----------
-    thresholds: list[tuple]
+    thresholds: List[tuple]
         list of tuples of (m, n)
     scan_dir: str
         directory containing the scan results
 
     Returns
     -------
-    filtered_results_dict: dict
-        dictionary of (target_threshold, n) and the filtered results directory
+    filtered_results_dict: Dict
+        Dictionary of (target_threshold, n) and the filtered results directory
     """
     scan_results_dir: str = os.path.join(scan_dir, "scan_results")
     data_promis: Dict = get_promiscuous_targets(thresholds, scan_dir)

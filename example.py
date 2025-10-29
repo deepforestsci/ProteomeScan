@@ -9,20 +9,13 @@ This script demonstrates a complete proteome-guided docking run:
 - Aggregates per-ligand top hits into `scan_dir/scan_results/`
 - Filters promiscuous targets (optionally writing filtered CSVs)
 - Runs pose-binding analysis for one example gene and writes a CSV summary
-
-Notes
------
-- The pipeline is resumable/idempotent: existing gene folders and docking
-  outputs are detected and skipped.
-- Inputs are read from `data/`, outputs are written under `scan_dir/` and
-  the local working directory (`pose_analysis/`, temp results for pose
-  analysis).
 """
 
 import os
 import shutil
 import json
 import pandas as pd
+from typing import Dict, List
 from proteome_scan import get_cleaned_pdbs, run_docking, parse_results
 from proteome_scan.post_scan_analysis import (
     filter_promiscuous_targets, run_multi_pose_analysis)
@@ -38,20 +31,20 @@ with open('data/ligands/ligands_known_targets.json', 'r') as f:
 proteome_scan_gene_df = pd.read_csv("data/ProteomeScan_7657_genes.csv")
 
 
-def run_proteome_scan(ligands, gene_names, scan_dir):
+def run_proteome_scan(ligands: list[str], gene_names: list[str], scan_dir: str) -> None:
     """
     Run a resumable proteome-wide docking scan and post-processing pipeline.
 
     Parameters
     ----------
-    ligands : list[str]
+    ligands: list[str]
         Ligand display names. Each must have a corresponding processed SDF at
-        `data/ligands/processed/Processed_{ligand}.sdf`.
-    gene_names : list[str]
+        `<data>/ligands/processed/Processed_{ligand}.sdf`.
+    gene_names: list[str]
         Gene symbols to scan. Each must exist in
-        `data/ProteomeScan_7657_genes.csv` with a valid UniProt entry under
+        `<data>/ProteomeScan_7657_genes.csv` with a valid UniProt entry under
         column `Gene Names (primary)`.
-    scan_dir : str
+    scan_dir: str
         Output directory for this run. Created if it does not exist. All
         per-gene data, complexes, and aggregated results are stored here.
 
@@ -59,22 +52,14 @@ def run_proteome_scan(ligands, gene_names, scan_dir):
     -------
     None
 
-    Raises
-    ------
-    ValueError
-        If a gene in `gene_names` is not found in the ProteomeScan gene table.
-    Exception
-        If required docking prerequisites for a gene are missing (e.g., its
-        `{gene}_pdbs.csv`).
-
     Notes
     -----
-    - Idempotent behavior: existing gene folders under `scan_dir/` and existing
+    - Existing gene folders under `<scan_dir>/` and existing
       per-ligand per-gene top-score CSVs are detected and skipped, allowing
       interrupted runs to resume.
-    - Aggregated per-ligand top tables are written to `scan_dir/scan_results/`.
+    - Aggregated per-ligand top tables are written to `<scan_dir>/scan_results/`.
     - Promiscuity-filtered copies are written to
-      `scan_dir/scan_results_promiscuity_filtered_{M%}_{N}/`.
+      `<scan_dir>/scan_results_promiscuity_filtered_{M%}_{N}/`.
     - Pose analysis writes a summary CSV to `pose_analysis/` and uses a
       temporary results directory managed by the pose-analysis module.
 
@@ -88,19 +73,19 @@ def run_proteome_scan(ligands, gene_names, scan_dir):
     """
     os.makedirs(scan_dir, exist_ok=True)
     # Add known target genes to the gene_names list
-    ligand_smiles = []
+    ligand_smiles: List = []
     for ligand in ligands:
         gene_names.extend(ligands_known_targets[ligand]['target_genes'])
         ligand_smiles.append(smiles_data[ligand])
 
     # get ligand sdf addresses
-    ligand_sdf_addresses = {
+    ligand_sdf_addresses: Dict = {
         ligand: f"data/ligands/processed/Processed_{ligand}.sdf"
         for ligand in ligands
     }
 
     # get pdbs and their metadata for each gene
-    gene_metadata = {}
+    gene_metadata: Dict = {}
     for gene_name in gene_names:
         gene_metadata[gene_name] = {}
         s = proteome_scan_gene_df.loc[
@@ -140,7 +125,7 @@ def run_proteome_scan(ligands, gene_names, scan_dir):
     parse_results(ligands, scan_dir)  # stores results in scan_dir/scan_results
 
     # filter promiscuous targets
-    thresholds = [
+    thresholds: List[tuple] = [
         (15, 1),  # in top 15% of all targets and common in 1 target
     ]
     filtered_results_dict = filter_promiscuous_targets(thresholds, scan_dir)

@@ -17,7 +17,39 @@ if DISABLE_WARNINGS:
     logging.getLogger().setLevel(logging.ERROR)
 
 
-def vina_docking(raw_pdb_address, raw_ligand_address, scan_dir, exhaustiveness=32, num_modes=8):
+def vina_docking(raw_pdb_address: str,
+                raw_ligand_address: str,
+                scan_dir: str,
+                exhaustiveness: int = 32,
+                num_modes: int = 8) -> tuple[list, list]:
+    """
+    Run VINA docking for a given protein pdb file and ligand sdf file.
+
+    Parameters
+    ----------
+    raw_pdb_address: str
+        Path to the protein pdb file.
+    raw_ligand_address: str
+        Path to the ligand sdf file.
+    scan_dir: str
+        Path to the scan directory.
+    exhaustiveness: int
+        Exhaustiveness for VINA docking.
+    num_modes: int
+        Number of modes for VINA docking.
+
+    Returns
+    -------
+    complex: list
+        List of complex molecules.
+    scores: list
+        List of scores.
+
+    Examples
+    --------
+    >>> vina_docking("1abc.pdb", "ligand.sdf", "./scan_dir", exhaustiveness=32, num_modes=8)
+    """
+
     dir_name = "vina_docking_"+str(dt.datetime.now().isoformat())
     tmp = os.path.join(scan_dir, dir_name)
     os.mkdir(tmp)
@@ -30,9 +62,28 @@ def vina_docking(raw_pdb_address, raw_ligand_address, scan_dir, exhaustiveness=3
                         num_modes=num_modes,
                         out_dir=tmp,
                         generate_scores=True)
-    return complex,scores
+    return complex, scores
 
-def main(gene_name, ligand, ligand_address, scan_dir):
+def main(gene_name: str, ligand: str, ligand_address: str, scan_dir: str) -> bool:
+    """
+    Run gene-guided docking for a given ligand and gene name.
+
+    Parameters
+    ----------
+    gene_name: str
+        Name of the gene.
+    ligand: str
+        Name of the ligand.
+    ligand_address: str
+        Path to the ligand file.
+    scan_dir: str
+        Path to the scan directory.
+
+    Returns
+    -------
+    bool
+        True if docking completed successfully, False otherwise.
+    """
     try:
         if os.path.exists(f"{scan_dir}/{ligand}/top_score_{gene_name}_{ligand}.csv"):
             print(f"Skipping {gene_name} {ligand} docking because results file already exists")
