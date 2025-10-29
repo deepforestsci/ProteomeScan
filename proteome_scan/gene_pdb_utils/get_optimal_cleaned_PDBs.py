@@ -218,20 +218,6 @@ def get_optimal_pdbs_df(df, seq_length, min_res_val=2.5):
     return selected_pdbs
 
 
-def download_pdbs(gene_name, pdb_id_list):
-    failed_pdbs = []
-    for pdb_id in pdb_id_list:
-        if not os.path.isdir(f'{gene_name}'):
-            os.mkdir(f'{gene_name}')
-        if os.path.isfile(os.path.join(gene_name, f"g_{gene_name}_p_{pdb_id}.pdb")):
-            print(os.path.join(gene_name, f"g_{gene_name}_p_{pdb_id}.pdb"), " exists!")
-            continue
-        res = os.system(f'cd {gene_name}; wget -O g_{gene_name}_p_{pdb_id}.pdb https://www.ebi.ac.uk/pdbe/entry-files/download/pdb{pdb_id.lower()}.ent')
-        if res !=0:
-            if os.path.isfile(os.path.join(gene_name, f"g_{gene_name}_p_{pdb_id}.pdb")):
-                os.remove(os.path.join(gene_name, f"g_{gene_name}_p_{pdb_id}.pdb"))
-            failed_pdbs.append(pdb_id)
-    return failed_pdbs
 
 
 def get_chain_ids(pdb_file):
@@ -326,7 +312,7 @@ def get_cleaned_pdbs(gene_name, entry_id):
     # selected_pdbs = get_optimal_pdbs_df(pdbs_df, MAX_COVERAGE, min_res_val=2.5)
     # id_chain_map = selected_pdbs['chain_type'].to_dict()
 
-    # failed_pdbs = download_pdbs(gene_name, list(id_chain_map.keys()))
+    # failed_pdbs = download_pdb_file(list(id_chain_map.keys()), Path(gene_name))
     failed_pdbs = None
     while failed_pdbs != []:
         print("retrying get_optimal_pdbs")
@@ -336,7 +322,10 @@ def get_cleaned_pdbs(gene_name, entry_id):
             raise OverflowError("no pdbs left to check, likely over sized pdbs")
         selected_pdbs = get_optimal_pdbs_df(pdbs_df, MAX_COVERAGE, min_res_val=2.5)
         id_chain_map = selected_pdbs['chain_type'].to_dict()
-        failed_pdbs = download_pdbs(gene_name, list(id_chain_map.keys()))
+        # Use download_pdb_file with list of PDB IDs and convert results to failed_pdbs list
+        pdb_ids = list(id_chain_map.keys())
+        results = download_pdb_file(pdb_ids, Path(gene_name))
+        failed_pdbs = [pdb_id for pdb_id, success in zip(pdb_ids, results) if not success]
         if failed_pdbs != []:
             print(f"failed_pdbs: {failed_pdbs}")
             continue
@@ -401,20 +390,20 @@ if __name__ == "__main__":
 
 
 def download_pdb_file(pdb_id, target_dir):
-    """Download PDB file from RCSB PDB using wget or curl.
+    """Download PDB file(s) from RCSB PDB using wget or curl.
 
     Parameters
     ----------
-    pdb_id : str
-        PDB identifier for the structure to download.
+    pdb_id : str or list of str
+        PDB identifier(s) for the structure(s) to download.
     target_dir : pathlib.Path
-        Directory where the PDB file will be saved as {pdb_id}.pdb.
+        Directory where the PDB file(s) will be saved as {pdb_id}.pdb.
 
     Returns
     -------
-    bool
-        True if file was downloaded successfully or already exists,
-        False if download failed.
+    bool or list of bool
+        If pdb_id is str: True if file was downloaded successfully or already exists, False if download failed.
+        If pdb_id is list: List of bool results for each PDB ID.
 
     Notes
     -----
@@ -426,10 +415,24 @@ def download_pdb_file(pdb_id, target_dir):
     Examples
     --------
     >>> from pathlib import Path
+    >>> # Single PDB ID
     >>> success = download_pdb_file('4XV2', Path('./BRAF/'))
     >>> if success:
     ...     print("Downloaded 4XV2.pdb")
+    >>>
+    >>> # Multiple PDB IDs
+    >>> results = download_pdb_file(['4XV2', '5VAL'], Path('./BRAF/'))
+    >>> successful_downloads = sum(results)
+    >>> print(f"Downloaded {successful_downloads} out of 2 files")
     """
+    # Handle both single PDB ID and list of PDB IDs
+    if isinstance(pdb_id, list):
+        results = []
+        for single_pdb_id in pdb_id:
+            results.append(download_pdb_file(single_pdb_id, target_dir))
+        return results
+
+    # Single PDB ID logic (original code)
     pdb_file = target_dir / f"{pdb_id}.pdb"
 
     if pdb_file.exists():
@@ -457,6 +460,7 @@ def download_pdb_file(pdb_id, target_dir):
     return False
 
 
+
 def setup_gene_from_config(gene_config, work_dir):
     """Setup gene directory and download PDB files from configuration.
 
@@ -477,8 +481,7 @@ def setup_gene_from_config(gene_config, work_dir):
     Creates directory structure with main gene directory, complexes subdirectory,
     and a CSV metadata file at {work_dir}/{gene_name}/{gene_name}_pdbs.csv.
 
-    CSV contains columns: id, path, chains, resolution, coverage.
-    Default values: chains='A', resolution=2.0, coverage=100.
+    CSV contains columns: id, path.
 
     Examples
     --------
@@ -509,13 +512,10 @@ def setup_gene_from_config(gene_config, work_dir):
             pdb_paths.append(f"{gene_name}/{pdb_id}.pdb")
 
     if successful_pdbs:
-        # Create a CSV with PDB info
+        # Create a simple CSV with just PDB ID and file path
         pdb_info = pd.DataFrame({
             'id': successful_pdbs,
-            'path': pdb_paths,
-            'chains': ['A'] * len(successful_pdbs),  # Default chain
-            'resolution': [2.0] * len(successful_pdbs),  # Default resolution
-            'coverage': [100] * len(successful_pdbs)  # Default coverage
+            'path': pdb_paths
         })
         pdb_info = pdb_info.set_index('id')
         pdb_info.to_csv(gene_dir / f"{gene_name}_pdbs.csv")
