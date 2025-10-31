@@ -31,7 +31,11 @@ with open('data/ligands/ligands_known_targets.json', 'r') as f:
 proteome_scan_gene_df = pd.read_csv("data/ProteomeScan_7657_genes.csv")
 
 
+<<<<<<< HEAD
 def run_proteome_scan(ligands: list[str], gene_names: list[str], scan_dir: str) -> None:
+=======
+def run_proteome_scan(ligands, gene_names, scan_dir, use_server=False):
+>>>>>>> 7ba5ce3 (pyds flag)
     """
     Run a resumable proteome-wide docking scan and post-processing pipeline.
 
@@ -117,7 +121,7 @@ def run_proteome_scan(ligands: list[str], gene_names: list[str], scan_dir: str) 
         for ligand in ligands:
             print(f"Docking selected {gene_name} PDBs with {ligand}")
             if run_docking(gene_name, ligand, ligand_sdf_addresses[ligand],
-                           scan_dir):
+                           scan_dir, use_server=use_server, server_url="http://localhost:8000"):
                 print(f"Docking {gene_name} with {ligand} completed")
             else:
                 print(f"Docking {gene_name} with {ligand} failed")
@@ -150,4 +154,5 @@ if __name__ == "__main__":
     ligands = ['Trametinib', 'Tucatinib']
     gene_names = ["GBA3", "SLC7A11", "FABP2", "CYP1A1"]
     scan_dir = "proteome_scan_test1"
-    run_proteome_scan(ligands, gene_names, scan_dir)
+    use_server = True  # Set to True to use DeepChem Server, False for local docking
+    run_proteome_scan(ligands, gene_names, scan_dir, use_server=use_server)
