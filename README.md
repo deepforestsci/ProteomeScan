@@ -8,6 +8,8 @@ ProteomeScan is a Python toolkit for large-scale human proteome scan screening a
 - Internet connection (for UniProt/PDBe/PDBe-KB access)
 - Your ligand files (see `/data` folder below)
 
+Follow the documentation links to setup [deepchem-server](https://deep-forest-sciences-deepchem-server.readthedocs-hosted.com/en/latest/get_started/installation.html#docker-installation-recommended) and [PyDS](https://deep-forest-sciences-deepchem-server.readthedocs-hosted.com/en/latest/py_ds_library/getting_started.html).
+
 ## Data Folder
 
 - `data/gene_selection_raw`: Contains files used to filter Human Proteome and shortlist gene names for ProteomeScan.
