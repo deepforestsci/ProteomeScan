@@ -20,6 +20,13 @@ from proteome_scan import get_cleaned_pdbs, run_docking, parse_results
 from proteome_scan.post_scan_analysis import (
     filter_promiscuous_targets, run_multi_pose_analysis)
 
+try:
+    from proteome_scan.gene_pdb_utils import get_cleaned_pdbs_server
+    _SERVER_PDB_CLEAN_AVAILABLE = True
+except ImportError:
+    get_cleaned_pdbs_server = None  # type: ignore[assignment]
+    _SERVER_PDB_CLEAN_AVAILABLE = False
+
 with open('data/ligands/ligand_SMILES.json', 'r') as f:
     smiles_data = json.load(f)['ligand_smiles']
     f.close()
@@ -31,11 +38,8 @@ with open('data/ligands/ligands_known_targets.json', 'r') as f:
 proteome_scan_gene_df = pd.read_csv("data/ProteomeScan_7657_genes.csv")
 
 
-<<<<<<< HEAD
-def run_proteome_scan(ligands: list[str], gene_names: list[str], scan_dir: str) -> None:
-=======
-def run_proteome_scan(ligands, gene_names, scan_dir, use_server=False):
->>>>>>> 7ba5ce3 (pyds flag)
+def run_proteome_scan(ligands: list[str], gene_names: list[str], scan_dir: str,
+                      use_server: bool = False, server_url: str = "http://localhost:8000") -> None:
     """
     Run a resumable proteome-wide docking scan and post-processing pipeline.
 
@@ -51,6 +55,10 @@ def run_proteome_scan(ligands, gene_names, scan_dir, use_server=False):
     scan_dir: str
         Output directory for this run. Created if it does not exist. All
         per-gene data, complexes, and aggregated results are stored here.
+    use_server: bool
+        If True, uses the deepchem-server pdb_clean primitive via pyds. Defaults to False.
+    server_url: str
+        URL of the deepchem-server instance to use for pdb_clean. Defaults to "http://localhost:8000".
 
     Returns
     -------
@@ -110,7 +118,18 @@ def run_proteome_scan(ligands, gene_names, scan_dir, use_server=False):
                 index_col='id')
         else:
             print(f"fetching pdbs for {gene_name}")
-            df_metadata = get_cleaned_pdbs(gene_name, entry_id)
+            if use_server and _SERVER_PDB_CLEAN_AVAILABLE:
+                if get_cleaned_pdbs_server is not None:
+                    df_metadata = get_cleaned_pdbs_server(
+                        gene_name, entry_id,
+                        scan_id=scan_dir,
+                        output=gene_name,
+                        server_url=server_url,
+                    )
+                else:
+                    raise RuntimeError("get_cleaned_pdbs_server is not available")
+            else:
+                df_metadata = get_cleaned_pdbs(gene_name, entry_id)
             # move gene data to scan_dir
             print(f"moving {gene_name} data to {scan_dir}")
             shutil.move(f"./{gene_name}", f"./{scan_dir}/{gene_name}")
@@ -121,7 +140,7 @@ def run_proteome_scan(ligands, gene_names, scan_dir, use_server=False):
         for ligand in ligands:
             print(f"Docking selected {gene_name} PDBs with {ligand}")
             if run_docking(gene_name, ligand, ligand_sdf_addresses[ligand],
-                           scan_dir, use_server=use_server, server_url="http://localhost:8000"):
+                           scan_dir, use_server=use_server, server_url=server_url):
                 print(f"Docking {gene_name} with {ligand} completed")
             else:
                 print(f"Docking {gene_name} with {ligand} failed")
@@ -154,5 +173,6 @@ if __name__ == "__main__":
     ligands = ['Trametinib', 'Tucatinib']
     gene_names = ["GBA3", "SLC7A11", "FABP2", "CYP1A1"]
     scan_dir = "proteome_scan_test1"
-    use_server = True  # Set to True to use DeepChem Server, False for local docking
-    run_proteome_scan(ligands, gene_names, scan_dir, use_server=use_server)
+    use_server = True  # Set to True to use DeepChem Server, False for local
+    server_url = "http://localhost:8000"
+    run_proteome_scan(ligands, gene_names, scan_dir, use_server=use_server, server_url=server_url)
